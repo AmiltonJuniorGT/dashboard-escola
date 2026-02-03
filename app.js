@@ -25,12 +25,12 @@
  * Passo 3: Cole aqui o SHEET_ID e (opcional) o NOME_DA_ABA (padrão: DADOS_API).
  */
 
+
 const CONFIG = {
   SHEET_ID: "1bxfnVdmo0tcv1IKtSDkGYKW5V2plpKyN0oSkGXM_hI0",
   ABA: "DADOS_API"
 };
 
-// expõe para o resto do código
 const SHEET_ID = CONFIG.SHEET_ID;
 const SHEET_NAME = CONFIG.ABA;
 
