@@ -1,0 +1,94 @@
+:root{
+  --bg:#eef5f0;
+  --card:#ffffff;
+  --text:#1f3d2b;
+  --muted:#4f6f5d;
+  --green:#1b5e3c;
+  --green2:#2e7d5b;
+  --ok-bg:#d7f3e4;
+  --ok:#1b5e3c;
+  --bad-bg:#fde2e2;
+  --bad:#8a0000;
+  --warn-bg:#fff3cd;
+  --warn:#7a5b00;
+  --shadow:0 6px 14px rgba(0,0,0,0.06);
+  --radius:16px;
+}
+
+*{box-sizing:border-box}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;
+  background:var(--bg);
+  margin:0;
+  color:var(--text);
+}
+.topbar{
+  padding:16px;
+  background:linear-gradient(135deg,var(--green),var(--green2));
+  color:#fff;
+  position:sticky;
+  top:0;
+  z-index:5;
+}
+.title{font-weight:800;font-size:18px;line-height:1.2}
+.subtitle{font-size:12px;opacity:.9;margin-top:4px}
+.container{padding:14px;max-width:720px;margin:0 auto}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+}
+.card{
+  background:var(--card);
+  border-radius:var(--radius);
+  padding:14px;
+  box-shadow:var(--shadow);
+  border-left:6px solid var(--green2);
+}
+.label{font-size:12px;color:var(--muted);margin-bottom:6px}
+.kpi{font-size:24px;font-weight:800;color:var(--green)}
+.hint{font-size:12px;color:var(--muted);margin-top:6px}
+.row{display:flex;gap:12px;justify-content:space-between;align-items:flex-start}
+.badges{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.badge{
+  display:inline-block;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:800;
+  background:var(--warn-bg);
+  color:var(--warn);
+}
+.badge.ok{background:var(--ok-bg);color:var(--ok)}
+.badge.bad{background:var(--bad-bg);color:var(--bad)}
+.subgrid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin-top:12px;
+}
+.mini{
+  padding:10px;
+  border-radius:14px;
+  background:#f4faf6;
+  border:1px solid #e0ece6;
+}
+.miniVal{font-size:18px;font-weight:800;color:var(--green)}
+.note{
+  margin-top:10px;
+  font-size:12px;
+  color:var(--muted);
+  line-height:1.35;
+}
+.table{width:100%;border-collapse:collapse;margin-top:6px}
+.table td{padding:10px 6px;border-bottom:1px solid #e0ece6;font-size:14px}
+.rule{font-size:14px;line-height:1.35;color:var(--text)}
+.footer{
+  text-align:center;
+  padding:14px;
+  color:var(--muted);
+  font-size:12px;
+}
+@media (max-width:360px){
+  .grid{grid-template-columns:1fr}
+}

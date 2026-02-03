@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1b5e3c" />
+  <title>Dashboard Escola</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="title">🌱 Dashboard – Gestão da Escola</div>
+    <div class="subtitle">Atualiza a partir do Google Sheets (aba DADOS_API)</div>
+  </header>
+
+  <main class="container">
+    <section class="grid">
+      <div class="card">
+        <div class="label">Ticket Médio</div>
+        <div class="kpi" id="ticket_medio">—</div>
+        <div class="hint">Mínimo: R$ 370</div>
+      </div>
+
+      <div class="card">
+        <div class="label">Perda Estrutural</div>
+        <div class="kpi" id="perda">—</div>
+        <div class="hint">Fixa: 30%</div>
+      </div>
+
+      <div class="card">
+        <div class="label">Lucro por Turma</div>
+        <div class="kpi" id="lucro_turma">—</div>
+        <div class="hint">Média do mês</div>
+      </div>
+
+      <div class="card">
+        <div class="label">Lucro Total (mês)</div>
+        <div class="kpi" id="lucro_total">—</div>
+        <div class="hint">Com perda já considerada</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <div>
+          <div class="label">Ocupação Atual</div>
+          <div class="kpi" id="ocupacao">—</div>
+        </div>
+        <div class="badges">
+          <span class="badge" id="alert_ticket">Ticket</span>
+          <span class="badge" id="alert_c">Turmas C</span>
+          <span class="badge" id="alert_30">Turma &lt; 30</span>
+          <span class="badge" id="alert_ocup">Ocupação</span>
+        </div>
+      </div>
+      <div class="subgrid">
+        <div class="mini">
+          <div class="label">Turmas A</div>
+          <div class="miniVal" id="turmas_a">—</div>
+        </div>
+        <div class="mini">
+          <div class="label">Turmas B</div>
+          <div class="miniVal" id="turmas_b">—</div>
+        </div>
+        <div class="mini">
+          <div class="label">Turmas C</div>
+          <div class="miniVal" id="turmas_c">—</div>
+        </div>
+        <div class="mini">
+          <div class="label">Menor turma (alunos)</div>
+          <div class="miniVal" id="min_alunos">—</div>
+        </div>
+      </div>
+      <div class="note" id="alertas_texto">—</div>
+    </section>
+
+    <section class="card">
+      <div class="label">Cenários de Ocupação (Lucro estimado)</div>
+      <table class="table">
+        <tbody>
+          <tr><td>70%</td><td id="cen_70">—</td></tr>
+          <tr><td>80%</td><td id="cen_80">—</td></tr>
+          <tr><td>90%</td><td id="cen_90">—</td></tr>
+        </tbody>
+      </table>
+      <div class="hint">Regras: Turmas C ≤ 11 • Ticket ≥ 370 • Turma mínima ≥ 30 • Ocupação alerta &lt; 70%</div>
+    </section>
+
+    <section class="card">
+      <div class="label">Regra Estratégica</div>
+      <div class="rule"><strong>Ticket nunca abaixo de R$ 370</strong> e limite de <strong>11 turmas Classe C</strong>.</div>
+      <div class="hint">No Power BI, use as mesmas chaves da aba DADOS_API para manter consistência.</div>
+    </section>
+
+    <section class="card">
+      <div class="label">Status de Atualização</div>
+      <div class="hint" id="status">Carregando dados…</div>
+    </section>
+  </main>
+
+  <footer class="footer">Visão Mobile • Tons de verde • PWA instalável</footer>
+
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js');
+    }
+  </script>
+</body>
+</html>
