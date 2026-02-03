@@ -25,7 +25,7 @@
  * Passo 3: Cole aqui o SHEET_ID e (opcional) o NOME_DA_ABA (padrão: DADOS_API).
  */
 
-onst CONFIG = {
+const CONFIG = {
   SHEET_ID: "1bxfnVdmo0tcv1IKtSDkGYKW5V2plpKyN0oSkGXM_hI0",
   ABA: "DADOS_API"
 };
