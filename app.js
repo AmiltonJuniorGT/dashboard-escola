@@ -26,7 +26,7 @@
  */
 
 const CONFIG = {
-  SHEET_ID: "bxfnVdmo0tcv1IKtSDkGYKW5V2plpKyN0oSkGXM_hI0",
+  SHEET_ID: "1bxfnVdmo0tcv1IKtSDkGYKW5V2plpKyN0oSkGXM_hI0",
   ABA: "DADOS_API",
 };
 
@@ -105,14 +105,14 @@ function render(kv){
   const ok30 = minAlunos >= 30;
   const okOcup = ocup >= 0.70;
 
-  setBadge(byId("alert_ticket"), okTicket, "Ticket OK", "Ticket < 370");
+  setBadge(byId("alert_ticket"), okTicket, "Ticket OK", "Ticket < 370.00");
   setBadge(byId("alert_c"), okC, "Turmas C OK", "C > 11");
   setBadge(byId("alert_30"), ok30, "Turmas ≥ 30", "< 30 alunos");
   setBadge(byId("alert_ocup"), okOcup, "Ocupação OK", "< 70%");
 
   const msgs = [];
-  if(!okTicket) msgs.push("⚠️ Ticket médio abaixo de R$ 370.");
-  if(!okC) msgs.push("⚠️ Turmas Classe C acima de 11.");
+  if(!okTicket) msgs.push("⚠️ Ticket médio abaixo de R$ 370.00");
+  if(!okC) msgs.push("⚠️ Turmas Classe C acima de 11.00");
   if(!ok30) msgs.push("⚠️ Existe turma com menos de 30 alunos.");
   if(!okOcup) msgs.push("⚠️ Ocupação abaixo de 70% (risco de lucro).");
   byId("alertas_texto").textContent = msgs.length ? msgs.join(" ") : "✅ Tudo dentro das regras.";
@@ -120,7 +120,7 @@ function render(kv){
 
 async function main(){
   const status = byId("status");
-  if (CONFIG.SHEET_ID === "COLE_AQUI_O_SHEET_ID"){
+  if (CONFIG.SHEET_ID === "1bxfnVdmo0tcv1IKtSDkGYKW5V2plpKyN0oSkGXM_hI0"){
     status.textContent = "Falta configurar o SHEET_ID no app.js. Veja o README.";
     status.style.color = "#8a0000";
     return;
