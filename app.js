@@ -28,6 +28,8 @@
 const CONFIG = {
   SHEET_ID: "1bxfnVdmo0tcv1IKtSDkGYKW5V2plpKyN0oSkGXM_hI0",
   ABA: "DADOS_API",
+  const SHEET_ID = CONFIG.SHEET_ID;
+  const SHEET_NAME = CONFIG.ABA;
 };
 
 function brl(n){
