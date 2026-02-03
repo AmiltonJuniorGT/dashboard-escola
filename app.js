@@ -6,13 +6,13 @@
  *   A: chave   |  B: valor
  * Exemplo:
  *   ticket_medio | 370
- *   perda        | 0.30
+ *   perda        | 0,30
  *   custo_aluno  | 220
  *   alunos_turma | 35
  *   turmas_a     | 40
  *   turmas_b     | 25
  *   turmas_c     | 11
- *   ocupacao     | 0.80
+ *   ocupacao     | 0,80
  *   min_alunos   | 28
  *   lucro_turma  | 1365
  *   lucro_total  | 103740
@@ -79,7 +79,7 @@ function setBadge(el, ok, textOk, textBad){
 function render(kv){
   // Defaults
   const ticket = Number(kv.ticket_medio ?? 370);
-  const perda = Number(kv.perda ?? 0.30);
+  const perda = Number(kv.perda ?? 0,30);
   const turmasC = Number(kv.turmas_c ?? 0);
   const ocup = Number(kv.ocupacao ?? 0);
   const minAlunos = Number(kv.min_alunos ?? 999);
@@ -105,14 +105,14 @@ function render(kv){
   const ok30 = minAlunos >= 30;
   const okOcup = ocup >= 0.70;
 
-  setBadge(byId("alert_ticket"), okTicket, "Ticket OK", "Ticket < 370.00");
+  setBadge(byId("alert_ticket"), okTicket, "Ticket OK", "Ticket < 370,00");
   setBadge(byId("alert_c"), okC, "Turmas C OK", "C > 11");
   setBadge(byId("alert_30"), ok30, "Turmas ≥ 30", "< 30 alunos");
   setBadge(byId("alert_ocup"), okOcup, "Ocupação OK", "< 70%");
 
   const msgs = [];
-  if(!okTicket) msgs.push("⚠️ Ticket médio abaixo de R$ 370.00");
-  if(!okC) msgs.push("⚠️ Turmas Classe C acima de 11.00");
+  if(!okTicket) msgs.push("⚠️ Ticket médio abaixo de R$ 370,00");
+  if(!okC) msgs.push("⚠️ Turmas Classe C acima de 11,00");
   if(!ok30) msgs.push("⚠️ Existe turma com menos de 30 alunos.");
   if(!okOcup) msgs.push("⚠️ Ocupação abaixo de 70% (risco de lucro).");
   byId("alertas_texto").textContent = msgs.length ? msgs.join(" ") : "✅ Tudo dentro das regras.";
