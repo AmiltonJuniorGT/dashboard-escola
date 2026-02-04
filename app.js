@@ -131,7 +131,7 @@ function renderCapacidade(kv){
 async function main(){
   const status = el("status");
 
-  if (!SHEET_ID || SHEET_ID === "COLE_AQUI_SEU_SHEET_ID"){
+  if (!SHEET_ID || SHEET_ID === "1D5w0o9nzhFjR2GQlMmN1hijASBcTYwXX"){
     status.textContent = "Configure o SHEET_ID no app.js (uma única vez).";
     status.style.color = "darkred";
     return;
