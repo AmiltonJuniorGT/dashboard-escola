@@ -1,5 +1,5 @@
 // ====== CONFIG (troque só isso) ======
-const SHEET_ID = "COLE_AQUI_SEU_SHEET_ID"; // ex: 1ho2rVMQW-E4dnygqrhUPUHSnItYqhnq0
+const SHEET_ID = "1D5w0o9nzhFjR2GQlMmN1hijASBcTYwXX"; // ex: 1ho2rVMQW-E4dnygqrhUPUHSnItYqhnq0
 
 const TABS = {
   DADOS: "DADOS_API",
