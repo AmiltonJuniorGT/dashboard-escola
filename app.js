@@ -27,7 +27,7 @@
 
 const CONFIG = {
   SHEET_ID: "1D5w0o9nzhFjR2GQlMmN1hijASBcTYwXX",
-  ABA: "DADOS_API"
+  ABA: "DADOS_API",
 };
 
 const SHEET_ID = CONFIG.SHEET_ID;
