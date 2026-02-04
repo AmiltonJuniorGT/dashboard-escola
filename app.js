@@ -125,7 +125,7 @@ function render(kv){
 
 async function main(){
   const status = byId("status");
-  if (CONFIG.SHEET_ID === "1bxfnVdmo0tcv1IKtSDkGYKW5V2plpKyN0oSkGXM_hI0"){
+  if (CONFIG.SHEET_ID === "1D5w0o9nzhFjR2GQlMmN1hijASBcTYwXX"){ //1bxfnVdmo0tcv1IKtSDkGYKW5V2plpKyN0oSkGXM_hI0"
     status.textContent = "Falta configurar o SHEET_ID no app.js. Veja o README.";
     status.style.color = "#8a0000";
     return;
