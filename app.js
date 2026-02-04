@@ -1,237 +1,184 @@
-const CONFIG = {
-  SHEET_ID: "1ho2rVMQW-E4dnygqrhUPUHSnItYqhnq0",
-  ABA_KV: "DADOS_API",
-  ABA_CURSOS: "CURSOS_ABC",
-  ABA_TURNOS: "TURMAS_DECISAO",
+// ====== CONFIG (troque só isso) ======
+const SHEET_ID = "COLE_AQUI_SEU_SHEET_ID"; // ex: 1ho2rVMQW-E4dnygqrhUPUHSnItYqhnq0
+
+const TABS = {
+  DADOS: "DADOS_API",
+  CURSOS: "CURSOS_ABC",
+  TURNOS: "TURMAS_DECISAO",
 };
 
-const $ = (id) => document.getElementById(id);
+// ====== helpers ======
+const el = (id) => document.getElementById(id);
 
 function brl(n){
   const v = Number(n);
   if (Number.isNaN(v)) return "—";
   return v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 }
-function pct01(n){
+function pct(n){
   const v = Number(n);
   if (Number.isNaN(v)) return "—";
-  return (v*100).toFixed(1).replace(".",",") + "%";
-}
-function num(n){
-  const v = Number(n);
-  return Number.isNaN(v) ? null : v;
+  return (v*100).toFixed(0) + "%";
 }
 
-async function gvizFetch(sheetName, range){
-  const url = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&range=${encodeURIComponent(range)}`;
+// ====== fetch gviz ======
+async function fetchGViz(sheetName, range="A:Z"){
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&range=${encodeURIComponent(range)}`;
   const res = await fetch(url, { cache: "no-store" });
   const txt = await res.text();
   const jsonText = txt.substring(txt.indexOf("{"), txt.lastIndexOf("}")+1);
   return JSON.parse(jsonText);
 }
 
-async function fetchKV(){
-  const j = await gvizFetch(CONFIG.ABA_KV, "A:B");
-  const rows = j?.table?.rows || [];
+function tableToRows(json){
+  const cols = (json.table?.cols || []).map(c => c.label || c.id);
+  const rows = (json.table?.rows || []).map(r => (r.c || []).map(c => c?.v ?? null));
+  return { cols, rows };
+}
+
+function rowsToKV(cols, rows){
+  // espera 2 colunas: chave | valor
   const kv = {};
+  const kIdx = 0, vIdx = 1;
   rows.forEach(r=>{
-    const k = r.c?.[0]?.v;
-    const v = r.c?.[1]?.v;
+    const k = r[kIdx];
+    const v = r[vIdx];
     if (k != null) kv[String(k).trim()] = v;
   });
   return kv;
 }
 
-async function fetchCursos(){
-  // curso | matriculas
-  const j = await gvizFetch(CONFIG.ABA_CURSOS, "A:B");
-  const rows = j?.table?.rows || [];
-  const data = [];
-  rows.forEach(r=>{
-    const curso = r.c?.[0]?.v;
-    const matriculas = r.c?.[1]?.v;
-    if(curso != null) data.push({curso:String(curso), matriculas:Number(matriculas||0)});
-  });
-  return data;
-}
-
-async function fetchTurnos(){
-  // turno | receita_liquida_aluno | lucro_turma | decisao
-  const j = await gvizFetch(CONFIG.ABA_TURNOS, "A:D");
-  const rows = j?.table?.rows || [];
-  const data = [];
-  rows.forEach(r=>{
-    const turno = r.c?.[0]?.v;
-    if(turno == null) return;
-    data.push({
-      turno: String(turno),
-      receita_liq_aluno: num(r.c?.[1]?.v),
-      lucro_turma: num(r.c?.[2]?.v),
-      decisao: (r.c?.[3]?.v != null) ? String(r.c?.[3]?.v) : "—"
-    });
-  });
-  return data;
-}
-
-function setBadge(el, state){
-  el.classList.remove("ok","warn","bad");
-  el.classList.add(state);
-}
-
-function renderResumo(kv, cursos){
-  const ticket = num(kv.ticket_medio ?? 370) ?? 370;
-  const perda = num(kv.perda ?? 0.30) ?? 0.30;
-  const custo = num(kv.custo_aluno ?? 220) ?? 220;
-  const alunosTurma = num(kv.alunos_turma ?? 35) ?? 35;
-  const salas = num(kv.salas ?? 19) ?? 19;
-  const turnos = num(kv.turnos ?? 5) ?? 5;
+// ====== render ======
+function renderResumo(kv, turnos){
+  const ticket = Number(kv.ticket_medio ?? 370);
+  const perda = Number(kv.perda ?? 0.30);
+  const custo = Number(kv.custo_aluno ?? 220);
 
   const ticketLiq = ticket * (1 - perda);
-  const lucroAluno = ticketLiq - custo;
-  const lucroTurma = lucroAluno * alunosTurma;
 
-  const totalMatriculas = cursos.reduce((s,x)=>s + (x.matriculas||0), 0);
-  const turmasPossiveis = salas * turnos;
+  el("kpi_ticket").textContent = brl(ticket);
+  el("kpi_perda").textContent = pct(perda);
+  el("kpi_ticket_liq").textContent = brl(ticketLiq);
+  el("kpi_custo").textContent = brl(custo);
+  el("kpi_lucro_turma").textContent = brl(kv.lucro_turma ?? (ticketLiq - custo) * Number(kv.alunos_turma ?? 35));
+  el("kpi_lucro_total").textContent = brl(kv.lucro_total ?? null);
 
-  $("kpi_matriculas").textContent = totalMatriculas.toLocaleString("pt-BR");
-  $("kpi_ticket").textContent = brl(ticket);
-  $("kpi_ticket_liq").textContent = brl(ticketLiq);
-  $("kpi_lucro_turma").textContent = brl(lucroTurma);
-  $("kpi_capacidade").textContent = `${salas} × ${turnos}`;
-  $("kpi_turmas_possiveis").textContent = turmasPossiveis.toLocaleString("pt-BR");
+  // Turnos decisão (render simples)
+  const lines = turnos.map(t=>{
+    const turno = t.turno ?? "—";
+    const lucro = brl(t.lucro_turma);
+    const dec = (t.decisao || "").toUpperCase();
+    const icon = dec.includes("NÃO") ? "❌" : "✅";
+    return `<div style="margin:6px 0;"><strong>${turno}</strong>: ${icon} ${dec || "—"} <span style="color:#60786a">(${lucro})</span></div>`;
+  }).join("");
 
-  // premissas
-  const prem = [
-    `Ticket nominal: ${brl(ticket)} (não reduz)`,
-    `Perda estrutural: ${pct01(perda)}`,
-    `Ticket líquido: ${brl(ticketLiq)}`,
-    `Custo por aluno: ${brl(custo)}`,
-    `Alunos por turma: ${alunosTurma}`,
-    `Salas: ${salas}`,
-    `Turnos: ${turnos}`,
-    `Turmas possíveis: ${turmasPossiveis}`
-  ];
-  const ul = $("premissas");
-  ul.innerHTML = prem.map(x=>`<li>${x}</li>`).join("");
-
-  // badges/regras (piloto)
-  const turmasCLimite = num(kv.turmas_c_limite ?? 11) ?? 11;
-  const lucroMinTurma = num(kv.lucro_min_turma ?? 1000) ?? 1000;
-
-  // Só indicativo (sem turmas C reais ainda no piloto)
-  $("alertas_texto").textContent =
-    `Regras ativas: Ticket ≥ ${brl(370)} • Turmas C ≤ ${turmasCLimite} • Abrir turma só acima de ${brl(lucroMinTurma)} (lucro/turma).`;
-
-  $("b_ticket").textContent = "Ticket OK";
-  setBadge($("b_ticket"), ticket >= 370 ? "ok" : "bad");
-
-  $("b_c").textContent = `C ≤ ${turmasCLimite}`;
-  setBadge($("b_c"), "ok");
-
-  $("b_lucro").textContent = `Lucro/turma ${brl(lucroTurma)}`;
-  setBadge($("b_lucro"), lucroTurma >= lucroMinTurma ? "ok" : "warn");
+  el("turnos_box").innerHTML = lines || "—";
 }
 
-function computeABC(cursos){
-  const arr = [...cursos].filter(x=>x.matriculas>0);
-  arr.sort((a,b)=>b.matriculas - a.matriculas);
-  const total = arr.reduce((s,x)=>s+x.matriculas,0);
-  let acc = 0;
-  return arr.map(x=>{
-    const p = total ? x.matriculas/total : 0;
-    acc += p;
-    const cls = acc <= 0.80 ? "A" : (acc <= 0.95 ? "B" : "C");
-    return {...x, pct:p, acc, cls};
-  });
-}
+function renderCursosABC(cursos){
+  // tabela simples (p/ reunião hoje)
+  const total = cursos.reduce((s,c)=>s + (Number(c.matriculas)||0), 0);
+  const sorted = [...cursos].sort((a,b)=>(Number(b.matriculas)||0)-(Number(a.matriculas)||0));
 
-function renderCursos(cursos){
-  const ordem = $("ordem_cursos").value;
-
-  let base = computeABC(cursos);
-  if(ordem === "asc") base = [...base].sort((a,b)=>a.matriculas-b.matriculas);
-  if(ordem === "nome") base = [...base].sort((a,b)=>a.curso.localeCompare(b.curso,"pt-BR"));
-
-  const total = cursos.reduce((s,x)=>s + (x.matriculas||0), 0);
-  $("total_matriculas").textContent = total.toLocaleString("pt-BR");
-
-  const tb = $("tbl_cursos").querySelector("tbody");
-  tb.innerHTML = base.map(x=>`
-    <tr>
-      <td>${x.curso}</td>
-      <td class="num">${x.matriculas.toLocaleString("pt-BR")}</td>
-      <td class="num">${pct01(x.pct)}</td>
-      <td class="num">${pct01(x.acc)}</td>
-      <td><span class="pill ${x.cls==="A"?"ok":x.cls==="B"?"warn":"bad"}">${x.cls}</span></td>
-    </tr>
-  `).join("");
-
-  const top3 = computeABC(cursos).slice(0,3);
-  const topShare = top3.reduce((s,x)=>s+x.pct,0);
-  $("insight_abc").textContent =
-    `Insight rápido: Top 3 cursos = ${pct01(topShare)} das matrículas (piloto).`;
-}
-
-function renderTurnos(turnos){
-  const tb = $("tbl_turnos").querySelector("tbody");
-  tb.innerHTML = turnos.map(x=>{
-    const d = (x.decisao||"").toUpperCase();
-    const cls = d.includes("NÃO") ? "bad" : d.includes("SÓ") ? "warn" : "ok";
+  let acum = 0;
+  const rows = sorted.map(c=>{
+    const m = Number(c.matriculas)||0;
+    const pctv = total ? (m/total) : 0;
+    acum += pctv;
+    const classe = acum <= 0.80 ? "A" : (acum <= 0.95 ? "B" : "C");
     return `
       <tr>
-        <td>${x.turno}</td>
-        <td class="num">${x.receita_liq_aluno==null?"—":brl(x.receita_liq_aluno)}</td>
-        <td class="num">${x.lucro_turma==null?"—":brl(x.lucro_turma)}</td>
-        <td><span class="pill ${cls}">${x.decisao}</span></td>
-      </tr>
-    `;
+        <td>${c.curso}</td>
+        <td style="text-align:right">${m.toLocaleString("pt-BR")}</td>
+        <td style="text-align:right">${(pctv*100).toFixed(1)}%</td>
+        <td style="text-align:right">${(acum*100).toFixed(1)}%</td>
+        <td style="text-align:center"><strong>${classe}</strong></td>
+      </tr>`;
   }).join("");
+
+  el("cursos_table").innerHTML = `
+    <div style="margin-bottom:8px;color:#4a5a52">Total matrículas: <strong>${total.toLocaleString("pt-BR")}</strong></div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid #e4efe8">
+          <th>Curso</th>
+          <th style="text-align:right">Matrículas</th>
+          <th style="text-align:right">% do Total</th>
+          <th style="text-align:right">% Acum.</th>
+          <th style="text-align:center">ABC</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
-function setupTabs(){
-  const tabs = document.querySelectorAll(".tab");
-  const map = {
-    executivo: $("tab-executivo"),
-    cursos: $("tab-cursos"),
-    turnos: $("tab-turnos"),
-  };
+function renderCapacidade(kv){
+  const salas = Number(kv.salas ?? 19);
+  const turnos = Number(kv.turnos ?? 5);
+  const alunosTurma = Number(kv.alunos_turma ?? 35);
 
-  function show(key){
-    Object.values(map).forEach(s=>s.classList.add("hidden"));
-    map[key].classList.remove("hidden");
-    tabs.forEach(b=>b.classList.toggle("active", b.dataset.tab===key));
+  const slots = salas * turnos;
+  const capTotal = slots * alunosTurma;
+
+  el("cap_salas").textContent = salas.toLocaleString("pt-BR");
+  el("cap_turnos").textContent = turnos.toLocaleString("pt-BR");
+  el("cap_slots").textContent = slots.toLocaleString("pt-BR");
+  el("cap_alunos_turma").textContent = alunosTurma.toLocaleString("pt-BR");
+  el("cap_total_alunos").textContent = capTotal.toLocaleString("pt-BR");
+}
+
+// ====== main ======
+async function main(){
+  const status = el("status");
+
+  if (!SHEET_ID || SHEET_ID === "COLE_AQUI_SEU_SHEET_ID"){
+    status.textContent = "Configure o SHEET_ID no app.js (uma única vez).";
+    status.style.color = "darkred";
+    return;
   }
 
-  tabs.forEach(b=>{
-    b.addEventListener("click", ()=>show(b.dataset.tab));
-  });
-
-  show("executivo");
-}
-
-async function main(){
-  setupTabs();
-
-  const status = $("status");
   try{
-    status.textContent = "Buscando dados do Google Sheets…";
+    status.textContent = "Atualizando…";
 
-    const [kv, cursos, turnos] = await Promise.all([
-      fetchKV(),
-      fetchCursos(),
-      fetchTurnos()
-    ]);
+    // DADOS_API (KV)
+    const jDados = await fetchGViz(TABS.DADOS, "A:B");
+    const { cols: c1, rows: r1 } = tableToRows(jDados);
+    const kv = rowsToKV(c1, r1);
 
-    renderResumo(kv, cursos);
-    renderCursos(cursos);
-    renderTurnos(turnos);
+    // CURSOS_ABC
+    const jCursos = await fetchGViz(TABS.CURSOS, "A:B");
+    const { rows: r2 } = tableToRows(jCursos);
+    const cursos = r2
+      .filter(r => r[0] != null)
+      .map(r => ({ curso: String(r[0]), matriculas: Number(r[1] || 0) }));
 
-    $("ordem_cursos").addEventListener("change", ()=>renderCursos(cursos));
+    // TURNOS_DECISAO
+    const jTurnos = await fetchGViz(TABS.TURNOS, "A:D");
+    const { cols: c3, rows: r3 } = tableToRows(jTurnos);
+    const idx = (name) => c3.findIndex(x => String(x).toLowerCase() === name);
+    const iTurno = idx("turno");
+    const iRec = idx("receita_liquida_aluno");
+    const iLuc = idx("lucro_turma");
+    const iDec = idx("decisao");
+
+    const turnos = r3
+      .filter(r => r[iTurno] != null)
+      .map(r => ({
+        turno: r[iTurno],
+        receita_liquida_aluno: r[iRec],
+        lucro_turma: r[iLuc],
+        decisao: r[iDec],
+      }));
+
+    renderResumo(kv, turnos);
+    renderCursosABC(cursos);
+    renderCapacidade(kv);
 
     status.textContent = "Atualizado com sucesso ✅";
+    status.style.color = "#2d6a4f";
   } catch(e){
     console.error(e);
-    status.textContent = "Erro ao ler o Google Sheets. Verifique: permissões da planilha, nomes das abas e colunas.";
+    status.textContent = "Erro ao ler o Google Sheets (verifique publicação/compartilhamento e nomes das abas).";
     status.style.color = "darkred";
   }
 }
