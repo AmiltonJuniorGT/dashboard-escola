@@ -54,11 +54,10 @@ const CONFIG = {
  *
  * Passo 3: Cole aqui o SHEET_ID e (opcional) o NOME_DA_ABA (padrão: DADOS_API).
  /*
-
+//"1bxfnVdmo0tcv1IKtSDkGYKW5V2plpKyN0oSkGXM_hI0", //1D5w0o9nzhFjR2GQlMmN1hijASBcTYwXX
 
 const CONFIG = {
   SHEET_ID: "1D5w0o9nzhFjR2GQlMmN1hijASBcTYwXX",
-  //"1bxfnVdmo0tcv1IKtSDkGYKW5V2plpKyN0oSkGXM_hI0", //1D5w0o9nzhFjR2GQlMmN1hijASBcTYwXX
   ABA: "DADOS_API"
 };
 
