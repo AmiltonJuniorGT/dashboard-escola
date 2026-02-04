@@ -25,37 +25,6 @@
  * Passo 3: Cole aqui o SHEET_ID e (opcional) o NOME_DA_ABA (padrão: DADOS_API).
  */
 
-/**
-const CONFIG = {
-  SHEET_ID: "1D5w0o9nzhFjR2GQlMmN1hijASBcTYwXX",
-  //"1bxfnVdmo0tcv1IKtSDkGYKW5V2plpKyN0oSkGXM_hI0", //1D5w0o9nzhFjR2GQlMmN1hijASBcTYwXX  //
- * Dashboard Escola – Mobile/PWA
- * Fonte: Google Sheets (aba DADOS_API) publicada ou compartilhada.
- *
- * Passo 1 (recomendado): no Google Sheets crie uma aba chamada DADOS_API com 2 colunas:
- *   A: chave   |  B: valor
- * Exemplo:
- *   ticket_medio | 370
- *   perda        | 0.30
- *   custo_aluno  | 220
- *   alunos_turma | 35
- *   turmas_a     | 40
- *   turmas_b     | 25
- *   turmas_c     | 11
- *   ocupacao     | 0.80
- *   min_alunos   | 28
- *   lucro_turma  | 1365
- *   lucro_total  | 103740
- *   cen_70       | 90090
- *   cen_80       | 103740
- *   cen_90       | 117390
- *
- * Passo 2: publique a planilha (Arquivo > Compartilhar > Publicar na web) ou use o modo "Qualquer pessoa com link - leitor".
- *
- * Passo 3: Cole aqui o SHEET_ID e (opcional) o NOME_DA_ABA (padrão: DADOS_API).
- /*
-//"1bxfnVdmo0tcv1IKtSDkGYKW5V2plpKyN0oSkGXM_hI0", //1D5w0o9nzhFjR2GQlMmN1hijASBcTYwXX
-
 const CONFIG = {
   SHEET_ID: "1D5w0o9nzhFjR2GQlMmN1hijASBcTYwXX",
   ABA: "DADOS_API"
