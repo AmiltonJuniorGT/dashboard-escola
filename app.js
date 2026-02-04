@@ -1,5 +1,5 @@
 // ====== CONFIG (troque só isso) ======
-const SHEET_ID = "1D5w0o9nzhFjR2GQlMmN1hijASBcTYwXX"; // ex: 1ho2rVMQW-E4dnygqrhUPUHSnItYqhnq0
+const SHEET_ID = "1sSk34SsgQ_2aAgr2Uqra4nVs9C0TVh-h"; // ex: 1ho2rVMQW-E4dnygqrhUPUHSnItYqhnq0
 
 const TABS = {
   DADOS: "DADOS_API",
@@ -131,11 +131,11 @@ function renderCapacidade(kv){
 async function main(){
   const status = el("status");
 
-  if (!SHEET_ID || SHEET_ID === "1D5w0o9nzhFjR2GQlMmN1hijASBcTYwXX"){
-    status.textContent = "Configure o SHEET_ID no app.js (uma única vez).";
-    status.style.color = "darkred";
-    return;
-  }
+  //if (!SHEET_ID || SHEET_ID === "1D5w0o9nzhFjR2GQlMmN1hijASBcTYwXX"){
+  //  status.textContent = "Configure o SHEET_ID no app.js (uma única vez).";
+  //  status.style.color = "darkred";
+  //  return;
+  // }
 
   try{
     status.textContent = "Atualizando…";
