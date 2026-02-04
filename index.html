@@ -2,41 +2,48 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dashboard – Gestão da Escola</title>
 
-  <!-- Manifest PWA -->
   <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#1f6f43" />
-
-  <!-- Estilos -->
   <link rel="stylesheet" href="styles.css" />
 </head>
-
 <body>
-  <header class="header">
-    <h1>🌱 Dashboard – Gestão da Escola</h1>
-    <p>Atualiza a partir do Google Sheets (aba <strong>DADOS_API</strong>)</p>
-  </header>
 
-  <main id="app">
-    <!-- Os cards e dados são preenchidos via app.js -->
-  </main>
+  <h1>Dashboard – Gestão da Escola</h1>
 
-  <footer class="footer">
-    <small>Visão Mobile • Tons de verde • PWA instalável</small>
-  </footer>
+  <div id="status" style="margin:16px 0;color:#555">
+    Carregando…
+  </div>
 
-  <!-- SCRIPT PRINCIPAL -->
-  <!-- ⚠️ MUITO IMPORTANTE: caminho RELATIVO -->
-  <script src="app.js"></script>
+  <div>
+    <p>Ticket médio: <strong id="ticket_medio">—</strong></p>
+    <p>Perda: <strong id="perda">—</strong></p>
+    <p>Lucro por turma: <strong id="lucro_turma">—</strong></p>
+    <p>Lucro total: <strong id="lucro_total">—</strong></p>
+    <p>Ocupação: <strong id="ocupacao">—</strong></p>
+  </div>
 
-  <!-- Service Worker -->
-  <script>
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js");
-    }
-  </script>
+  <hr>
+
+  <div>
+    <p>Turmas A: <span id="turmas_a">—</span></p>
+    <p>Turmas B: <span id="turmas_b">—</span></p>
+    <p>Turmas C: <span id="turmas_c">—</span></p>
+    <p>Menor turma: <span id="min_alunos">—</span></p>
+  </div>
+
+  <hr>
+
+  <div>
+    <p>70%: <span id="cen_70">—</span></p>
+    <p>80%: <span id="cen_80">—</span></p>
+    <p>90%: <span id="cen_90">—</span></p>
+  </div>
+
+  <!-- 🔴 ESTE É O PONTO CRÍTICO -->
+  <!-- app.js CORRETO -->
+  <script src="./app.js"></script>
+
 </body>
 </html>
