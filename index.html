@@ -6,44 +6,144 @@
   <title>Dashboard – Gestão da Escola</title>
 
   <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" />
   <link rel="stylesheet" href="styles.css" />
+
+  <style>
+    /* fallback caso o styles.css não carregue */
+    :root{ --bg:#eef4ef; --card:#ffffff; --green:#1f6f4a; --muted:#5a6b61; --line:#d7e3dc; }
+    body{ margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background:var(--bg); color:#123; }
+    header{ background:var(--green); color:#fff; padding:18px 18px 14px; }
+    header h1{ margin:0; font-size:22px; }
+    header p{ margin:6px 0 0; opacity:.9; font-size:13px; }
+    .wrap{ max-width:980px; margin:0 auto; padding:14px; }
+    .grid{ display:grid; gap:12px; }
+    .grid2{ grid-template-columns: 1fr 1fr; }
+    .grid2a{ grid-template-columns: 1.2fr .8fr; }
+    @media (max-width:760px){ .grid2, .grid2a{ grid-template-columns:1fr; } }
+    .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px 14px; box-shadow:0 1px 0 rgba(0,0,0,.03); }
+    .title{ font-size:13px; color:var(--muted); margin:0 0 6px; }
+    .value{ font-size:22px; font-weight:700; margin:0; }
+    .sub{ font-size:12px; color:var(--muted); margin:6px 0 0; }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; }
+    .pill{ background:#f3e3a5; color:#5b4600; padding:7px 10px; border-radius:999px; font-size:12px; font-weight:700; }
+    .list{ display:grid; gap:10px; }
+    .item{ background:#f3faf6; border:1px solid var(--line); border-radius:14px; padding:12px; }
+    .item .v{ font-weight:800; font-size:18px; }
+    .tbl{ width:100%; border-collapse:collapse; }
+    .tbl td{ padding:10px 8px; border-top:1px solid var(--line); }
+    .status{ color:#8a0000; font-weight:700; }
+    footer{ text-align:center; color:var(--muted); font-size:12px; padding:18px 0 24px; }
+  </style>
 </head>
+
 <body>
 
-  <h1>Dashboard – Gestão da Escola</h1>
+  <header>
+    <h1>🌿 Dashboard – Gestão da Escola</h1>
+    <p>Atualiza a partir do Google Sheets (aba <strong>DADOS_API</strong>)</p>
+  </header>
 
-  <div id="status" style="margin:16px 0;color:#555">
-    Carregando…
-  </div>
+  <main class="wrap">
 
-  <div>
-    <p>Ticket médio: <strong id="ticket_medio">—</strong></p>
-    <p>Perda: <strong id="perda">—</strong></p>
-    <p>Lucro por turma: <strong id="lucro_turma">—</strong></p>
-    <p>Lucro total: <strong id="lucro_total">—</strong></p>
-    <p>Ocupação: <strong id="ocupacao">—</strong></p>
-  </div>
+    <!-- topo: 2 cards -->
+    <section class="grid grid2">
+      <div class="card">
+        <p class="title">Lucro por Turma</p>
+        <p class="value" id="lucro_turma">—</p>
+        <p class="sub">Média do mês</p>
+      </div>
 
-  <hr>
+      <div class="card">
+        <p class="title">Lucro Total (mês)</p>
+        <p class="value" id="lucro_total">—</p>
+        <p class="sub">Com perda já considerada</p>
+      </div>
+    </section>
 
-  <div>
-    <p>Turmas A: <span id="turmas_a">—</span></p>
-    <p>Turmas B: <span id="turmas_b">—</span></p>
-    <p>Turmas C: <span id="turmas_c">—</span></p>
-    <p>Menor turma: <span id="min_alunos">—</span></p>
-  </div>
+    <!-- meio: ocupação + métricas -->
+    <section class="card" style="margin-top:12px;">
+      <div class="grid grid2a">
+        <div>
+          <p class="title">Ocupação Atual</p>
+          <p class="value" id="ocupacao">—</p>
+        </div>
 
-  <hr>
+        <div class="row" style="justify-content:flex-end; align-items:flex-start;">
+          <span class="pill">Ticket</span>
+          <span class="pill">Turmas C</span>
+          <span class="pill">Turma &lt; 30</span>
+          <span class="pill">Ocupação</span>
+        </div>
+      </div>
 
-  <div>
-    <p>70%: <span id="cen_70">—</span></p>
-    <p>80%: <span id="cen_80">—</span></p>
-    <p>90%: <span id="cen_90">—</span></p>
-  </div>
+      <div class="grid grid2" style="margin-top:12px;">
+        <div class="item">
+          <div class="title">Ticket Médio</div>
+          <div class="v" id="ticket_medio">—</div>
+          <div class="sub">Mínimo: R$ 370</div>
+        </div>
 
-  <!-- 🔴 ESTE É O PONTO CRÍTICO -->
-  <!-- app.js CORRETO -->
-  <script src="./app.js"></script>
+        <div class="item">
+          <div class="title">Perda Estrutural</div>
+          <div class="v" id="perda">—</div>
+          <div class="sub">Fixa: 30%</div>
+        </div>
+
+        <div class="item">
+          <div class="title">Turmas A</div>
+          <div class="v" id="turmas_a">—</div>
+        </div>
+
+        <div class="item">
+          <div class="title">Turmas B</div>
+          <div class="v" id="turmas_b">—</div>
+        </div>
+
+        <div class="item">
+          <div class="title">Turmas C</div>
+          <div class="v" id="turmas_c">—</div>
+        </div>
+
+        <div class="item">
+          <div class="title">Menor turma (alunos)</div>
+          <div class="v" id="min_alunos">—</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- cenários -->
+    <section class="card" style="margin-top:12px;">
+      <p class="title">Cenários de Ocupação (Lucro estimado)</p>
+      <table class="tbl">
+        <tr><td>70%</td><td style="text-align:right;" id="cen_70">—</td></tr>
+        <tr><td>80%</td><td style="text-align:right;" id="cen_80">—</td></tr>
+        <tr><td>90%</td><td style="text-align:right;" id="cen_90">—</td></tr>
+      </table>
+      <p class="sub">Regras: Turmas C ≤ 11 • Ticket ≥ 370 • Turma mínima ≥ 30 • Ocupação alerta &lt; 70%</p>
+    </section>
+
+    <!-- regra -->
+    <section class="card" style="margin-top:12px;">
+      <p class="title">Regra Estratégica</p>
+      <p style="margin:0; font-weight:900; font-size:18px;">
+        Ticket nunca abaixo de R$ 370 e limite de 11 turmas Classe C.
+      </p>
+      <p class="sub">No Power BI, use as mesmas chaves da aba DADOS_API para manter consistência.</p>
+    </section>
+
+    <!-- status -->
+    <section class="card" style="margin-top:12px;">
+      <p class="title">Status de Atualização</p>
+      <div id="status" class="status">Carregando…</div>
+    </section>
+
+    <footer>Visão Mobile • Tons de verde • PWA instalável</footer>
+
+  </main>
+
+  <!-- app.js CORRETO (mesma pasta do index.html) -->
+  <script src="app.js"></script>
 
 </body>
 </html>
