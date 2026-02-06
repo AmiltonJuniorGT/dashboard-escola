@@ -5,7 +5,20 @@ const TABS = {
   DADOS: "DADOS_API",
   CURSOS: "CURSOS_ABC",
   TURNOS: "TURMAS_DECISAO",
+
+const UNIDADES_SHEET_ID = "1JdheQGLm6AhyOF_a5HL6wOelfpI-GvxV"; // NOVA planilha
+
+const TABS = {
+  DADOS: "DADOS_API",
+  CURSOS: "CURSOS_ABC",
+  TURNOS: "TURMAS_DECISAO",
+
+  // novas abas
+  CAJAZEIRAS: "Números Cajazeiras",
+  CAMACARI: "Números Camaçari",
+  SAO_CRISTOVAO: "Números São Cristóvão",
 };
+
 
 // ====== helpers ======
 const el = (id) => document.getElementById(id);
@@ -19,6 +32,29 @@ function pct(n){
   const v = Number(n);
   if (Number.isNaN(v)) return "—";
   return (v*100).toFixed(0) + "%";
+}
+
+async function carregarUnidades(){
+  const unidades = [
+    { nome: "Cajazeiras", aba: TABS.CAJAZEIRAS },
+    { nome: "Camaçari", aba: TABS.CAMACARI },
+    { nome: "São Cristóvão", aba: TABS.SAO_CRISTOVAO },
+  ];
+
+  const resultados = [];
+
+  for (const u of unidades){
+    const json = await fetchGVizFrom(
+      UNIDADES_SHEET_ID,
+      u.aba,
+      "A:B"
+    );
+    const { rows } = tableToRows(json);
+    const kv = rowsToKV([], rows);
+    resultados.push({ nome: u.nome, ...kv });
+  }
+
+  return resultados;
 }
 
 // ====== fetch gviz ======
