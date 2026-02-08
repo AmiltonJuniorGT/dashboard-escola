@@ -76,16 +76,25 @@ function rowsToObj(rows) {
 
 // ================= CONFIG PADRÃO ======================
 async function loadDefaultConfig() {
+  const hoje = new Date();
+
   try {
-    const cfg = rowsToObj(await fetchSheet(TABS.CONFIG));
-    state.periodoFim = cfg.periodo_fim_padrao;
-    state.periodoInicio = cfg.periodo_inicio_padrao;
-    state.marca = cfg.marca_padrao || "C";
-    state.unidade = cfg.unidade_padrao || "TODAS";
+    const rows = await fetchSheet("Config");
+    const cfg = rowsToObj(rows);
+
+    const mm = String(cfg["Mês (mm)"]).padStart(2, "0");
+    const aa = "20" + cfg["Ano (aa)"];
+
+    state.periodoInicio = `${aa}-${mm}-01`;
+    state.periodoFim = `${aa}-${mm}-31`;
+    state.marca = "C";
+    state.unidade = "TODAS";
+
   } catch {
-    const hoje = iso(new Date());
-    state.periodoFim = hoje;
-    state.periodoInicio = firstDay(hoje);
+    state.periodoInicio = firstDay(iso(hoje));
+    state.periodoFim = iso(hoje);
+    state.marca = "C";
+    state.unidade = "TODAS";
   }
 }
 
