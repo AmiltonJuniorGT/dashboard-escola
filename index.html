@@ -26,6 +26,7 @@
   <button class="tabbtn active" data-page="p1">Resumo</button>
   <button class="tabbtn" data-page="p2">Cursos & ABC</button>
   <button class="tabbtn" data-page="p3">Capacidade & Grade</button>
+  <button class="tabbtn" data-page="p4">Unidades</button>
 </div>
 
 <section id="p1" class="page active">
@@ -40,7 +41,7 @@
       <div class="kpi">Lucro total<strong id="kpi_lucro_total">—</strong></div>
     </div>
   </div>
-
+  
   <div class="card">
     <h3>Decisão por turno</h3>
     <div id="turnos_box">—</div>
@@ -66,6 +67,26 @@
     </div>
   </div>
 </section>
+
+<section id="p4" class="page">
+  <div class="card">
+    <h2>Comparativo – Unidades</h2>
+    <div style="color:#4a5a52;margin:8px 0 12px">
+      Fonte: Google Sheets (Números Cajazeiras / Camaçari / São Cristóvão)
+    </div>
+
+    <div id="unidades_cards" class="grid"></div>
+
+    <div style="margin-top:14px">
+      <h3 style="margin:10px 0">Tabela comparativa (automática)</h3>
+      <div id="unidades_table">Carregando…</div>
+      <div style="color:#4a5a52;margin-top:8px;font-size:13px">
+        <strong>Dica:</strong> Melhor/pior é destacado quando faz sentido (ex.: lucro maior é melhor; inadimplência menor é melhor).
+      </div>
+    </div>
+  </div>
+</section>
+
 
 <script src="./app.js"></script>
 
