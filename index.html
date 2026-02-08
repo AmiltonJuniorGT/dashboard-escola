@@ -5,8 +5,35 @@
   <title>Dashboard – Gestão da Escola</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="styles.css" />
+  <style>
+  .tabcontent { display: none; }
+  .tabcontent.active { display: block; }
+  .tabs .tabbtn.active { border-color: #1f6f4a; }
+  </style>
 </head>
 
+<script>
+  (function () {
+    const btns = document.querySelectorAll('.tabs .tabbtn[data-tab]');
+    const tabs = document.querySelectorAll('.tabcontent');
+
+    function activate(id){
+      tabs.forEach(t => t.classList.remove('active'));
+      btns.forEach(b => b.classList.remove('active'));
+
+      const el = document.getElementById(id);
+      const bt = document.querySelector(`.tabs .tabbtn[data-tab="${id}"]`);
+      if (el) el.classList.add('active');
+      if (bt) bt.classList.add('active');
+    }
+
+    btns.forEach(b => b.addEventListener('click', () => activate(b.dataset.tab)));
+
+    // garante uma aba ativa ao carregar
+    activate('resumo');
+  })();
+</script>
+  
 <body>
   <div class="container">
 
@@ -64,11 +91,12 @@
 
     <!-- ABAS -->
     <div class="tabs">
-      <button class="tabbtn active" onclick="openTab('resumo', this)">Resumo</button>
-      <button class="tabbtn" onclick="openTab('cursos', this)">Cursos & ABC</button>
-      <button class="tabbtn" onclick="openTab('capacidade', this)">Capacidade & Grade</button>
-      <button class="tabbtn" onclick="openTab('fechamento', this)">Fechamento – 3 Unidades</button>
+      <button class="tabbtn active" data-tab="resumo">Resumo</button>
+      <button class="tabbtn" data-tab="cursos">Cursos & ABC</button>
+      <button class="tabbtn" data-tab="capacidade">Capacidade & Grade</button>
+      <button class="tabbtn" data-tab="fechamento">Fechamento – 3 Unidades</button>
     </div>
+
 
     <!-- CONTEÚDO DAS ABAS -->
 
