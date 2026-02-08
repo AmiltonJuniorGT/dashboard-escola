@@ -9,10 +9,6 @@ const TABS = {
 const UNIDADES_SHEET_ID = "1JdheQGLm6AhyOF_a5HL6wOelfpI-GvxV"; // NOVA planilha
 
 const TABS = {
-  DADOS: "DADOS_API",
-  CURSOS: "CURSOS_ABC",
-  TURNOS: "TURMAS_DECISAO",
-
   // novas abas
   CAJAZEIRAS: "Números Cajazeiras",
   CAMACARI: "Números Camaçari",
@@ -83,6 +79,83 @@ function rowsToKV(cols, rows){
   });
   return kv;
 }
+
+async function fetchGVizFrom(sheetId, sheetName, range="A:Z"){
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&range=${encodeURIComponent(range)}`;
+  const res = await fetch(url, { cache: "no-store" });
+  const txt = await res.text();
+  const jsonText = txt.substring(txt.indexOf("{"), txt.lastIndexOf("}")+1);
+  return JSON.parse(jsonText);
+}
+
+function normalizeKey(k){
+  return String(k || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // remove acentos
+}
+
+function prettyLabel(k){
+  return String(k)
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, m => m.toUpperCase());
+}
+
+function isPctKey(k){
+  const s = normalizeKey(k);
+  return s.includes("margem") || s.includes("inadimpl") || s.includes("evas") || s.includes("perda") || s.includes("ocup") || s.includes("percent") || s.endsWith("_pct");
+}
+
+function isMoneyKey(k){
+  const s = normalizeKey(k);
+  return s.includes("fatur") || s.includes("receita") || s.includes("custo") || s.includes("lucro") || s.includes("ticket") || s.includes("valor") || s.includes("mensal");
+}
+
+function fmtValue(key, v){
+  if (v == null || v === "") return "—";
+  const n = Number(v);
+  if (Number.isNaN(n)) return String(v);
+
+  if (isPctKey(key)) return (n * 100).toFixed(1).replace(".", ",") + "%";
+  if (isMoneyKey(key)) return n.toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
+
+  // inteiro vs decimal
+  if (Math.abs(n) >= 1000 || Number.isInteger(n)) return n.toLocaleString("pt-BR");
+  return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function betterIsHigher(key){
+  const s = normalizeKey(key);
+  // indicadores onde "menor é melhor"
+  if (s.includes("custo") || s.includes("inadimpl") || s.includes("evas") || s.includes("perda") || s.includes("cancel")) return false;
+  return true;
+}
+
+async function carregarUnidades(){
+  const map = [
+    { id:"cajazeiras", nome:"Cajazeiras", aba:TABS_UNIDADES.cajazeiras },
+    { id:"camacari", nome:"Camaçari", aba:TABS_UNIDADES.camacari },
+    { id:"sao_cristovao", nome:"São Cristóvão", aba:TABS_UNIDADES.sao_cristovao },
+  ];
+
+  const unidades = [];
+  for (const u of map){
+    const json = await fetchGVizFrom(UNIDADES_SHEET_ID, u.aba, "A:B");
+    const rows = (json.table?.rows || []).map(r => (r.c || []).map(c => c?.v ?? null));
+
+    const kv = {};
+    for (const r of rows){
+      const k = r[0];
+      const v = r[1];
+      if (k != null && String(k).trim() !== "") kv[String(k).trim()] = v;
+    }
+
+    unidades.push({ ...u, kv });
+  }
+
+  return unidades;
+}
+
 
 // ====== render ======
 function renderResumo(kv, turnos){
@@ -163,6 +236,119 @@ function renderCapacidade(kv){
   el("cap_total_alunos").textContent = capTotal.toLocaleString("pt-BR");
 }
 
+function renderUnidadesCards(unidades){
+  const box = document.getElementById("unidades_cards");
+  if (!box) return;
+
+  // escolhe algumas chaves “prováveis” para aparecer no card (se existirem)
+  const cardKeys = ["faturamento", "receita", "lucro", "margem", "ticket_medio", "matriculas", "ativos", "inadimplencia", "evasao"];
+
+  box.innerHTML = unidades.map(u=>{
+    const keys = Object.keys(u.kv);
+    const pick = cardKeys
+      .map(k => keys.find(x => normalizeKey(x) === normalizeKey(k)))
+      .filter(Boolean)
+      .slice(0, 6);
+
+    const lines = pick.map(k => `<div style="display:flex;justify-content:space-between;gap:10px;margin:6px 0">
+        <span style="color:#4a5a52">${prettyLabel(k)}</span>
+        <strong>${fmtValue(k, u.kv[k])}</strong>
+      </div>`).join("");
+
+    return `
+      <div class="kpi" style="border:1px solid #e4efe8;border-radius:14px;padding:12px;background:#fff">
+        <div style="font-weight:800;color:#1e3a2f;margin-bottom:6px">${u.nome}</div>
+        ${lines || `<div style="color:#4a5a52">Sem dados (aba vazia?)</div>`}
+      </div>
+    `;
+  }).join("");
+}
+
+//UNIDADES
+function renderUnidadesTabela(unidades){
+  const host = document.getElementById("unidades_table");
+  if (!host) return;
+
+  // união de todas as chaves
+  const allKeysSet = new Set();
+  unidades.forEach(u => Object.keys(u.kv).forEach(k => allKeysSet.add(k)));
+
+  // ordenação com prioridade (se existir)
+  const preferred = [
+    "faturamento","receita","receita_total","custo_total","lucro","margem",
+    "ticket_medio","ativos","matriculas","evasao","inadimplencia","perda"
+  ];
+
+  const allKeys = Array.from(allKeysSet);
+  allKeys.sort((a,b)=>{
+    const na = normalizeKey(a), nb = normalizeKey(b);
+    const ia = preferred.indexOf(na);
+    const ib = preferred.indexOf(nb);
+    if (ia !== -1 || ib !== -1) return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    return na.localeCompare(nb, "pt-BR");
+  });
+
+  // calcula melhor/pior por linha quando forem números
+  function getNumeric(k, v){
+    const n = Number(v);
+    return Number.isNaN(n) ? null : n;
+  }
+
+  const head = `
+    <thead>
+      <tr style="text-align:left;border-bottom:1px solid #e4efe8">
+        <th>Indicador</th>
+        ${unidades.map(u=>`<th style="text-align:right">${u.nome}</th>`).join("")}
+      </tr>
+    </thead>
+  `;
+
+  const bodyRows = allKeys.map(k=>{
+    const values = unidades.map(u => u.kv[k]);
+    const nums = values.map(v => getNumeric(k, v));
+
+    const validNums = nums
+      .map((n,i)=>({n,i}))
+      .filter(x=>x.n != null);
+
+    let bestIdx = null;
+    if (validNums.length >= 2){
+      const higherIsBetter = betterIsHigher(k);
+      bestIdx = validNums.reduce((best,cur)=>{
+        if (best == null) return cur;
+        return higherIsBetter ? (cur.n > best.n ? cur : best) : (cur.n < best.n ? cur : best);
+      }, null)?.i ?? null;
+    }
+
+    const tds = unidades.map((u, i)=>{
+      const v = u.kv[k];
+      const formatted = fmtValue(k, v);
+      const style = (bestIdx === i) ? "color:#1f7a3b;font-weight:800" : "color:#1e3a2f";
+      return `<td style="text-align:right;${style}">${formatted}</td>`;
+    }).join("");
+
+    return `<tr style="border-bottom:1px solid #f0f5f2">
+      <td style="color:#4a5a52">${prettyLabel(k)}</td>
+      ${tds}
+    </tr>`;
+  }).join("");
+
+  host.innerHTML = `
+    <div style="overflow:auto;border:1px solid #e4efe8;border-radius:12px">
+      <table style="width:100%;border-collapse:collapse;min-width:720px">
+        ${head}
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderUnidades(unidades){
+  renderUnidadesCards(unidades);
+  renderUnidadesTabela(unidades);
+}
+
+
 // ====== main ======
 async function main(){
   const status = el("status");
@@ -218,5 +404,9 @@ async function main(){
     status.style.color = "darkred";
   }
 }
+
+// UNIDADES (nova tela)
+    const unidades = await carregarUnidades();
+    renderUnidades(unidades);
 
 main();
