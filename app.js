@@ -119,9 +119,16 @@ async function renderFechamento() {
     html += `
       <div class="card">
         <h3>${u}</h3>
-        <p>Faturamento: <strong>${fmt(data.ge_faturamento, true)}</strong></p>
-        <p>Matrículas: <strong>${fmt(data.ge_matriculas)}</strong></p>
-        <p>Ativos: <strong>${fmt(data.ge_ativos)}</strong></p>
+        const prefix = state.marca === "T" ? "gt_" : (state.marca === "P" ? "gp_" : "ge_");
+
+        const fatKey = prefix + "faturamento";
+        const matKey = prefix + "matriculas";
+        const atiKey = prefix + "ativos";
+        
+        <p>Faturamento: <strong>${fmt(data[fatKey], true)}</strong></p>
+        <p>Matrículas: <strong>${fmt(data[matKey])}</strong></p>
+        <p>Ativos: <strong>${fmt(data[atiKey])}</strong></p>
+
       </div>
     `;
   }
