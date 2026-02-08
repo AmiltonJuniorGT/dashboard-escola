@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard – Gestão da Escola</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .tabs { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
+    .tabbtn { padding:10px 12px; border-radius:10px; border:1px solid #d6e2da; background:#fff; cursor:pointer; }
+    .tabbtn.active { border-color:#1f6f4a; }
+    .page { display:none; }
+    .page.active { display:block; }
+    .card { background:#fff; border:1px solid #e4efe8; border-radius:14px; padding:14px; margin:10px 0; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap:10px; }
+    .kpi { font-size:14px; color:#4a5a52; }
+    .kpi strong { display:block; font-size:18px; color:#1e3a2f; margin-top:6px; }
+  </style>
+</head>
+<body>
+
+<h1>Dashboard – Gestão da Escola</h1>
+<div id="status" style="margin:10px 0;color:#555">Carregando…</div>
+
+<div class="tabs">
+  <button class="tabbtn active" data-page="p1">Resumo</button>
+  <button class="tabbtn" data-page="p2">Cursos & ABC</button>
+  <button class="tabbtn" data-page="p3">Capacidade & Grade</button>
+  <button class="tabbtn" data-page="p4">Fechamento – 3 Unidades</button>
+</div>
+
+<section id="p1" class="page active">
+  <div class="card">
+    <h2>Resumo Executivo</h2>
+    <div class="grid">
+      <div class="kpi">Ticket médio<strong id="kpi_ticket">—</strong></div>
+      <div class="kpi">Perda<strong id="kpi_perda">—</strong></div>
+      <div class="kpi">Ticket líquido<strong id="kpi_ticket_liq">—</strong></div>
+      <div class="kpi">Custo/aluno<strong id="kpi_custo">—</strong></div>
+      <div class="kpi">Lucro/turma<strong id="kpi_lucro_turma">—</strong></div>
+      <div class="kpi">Lucro total<strong id="kpi_lucro_total">—</strong></div>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h3>Decisão por turno</h3>
+    <div id="turnos_box">—</div>
+  </div>
+</section>
+
+<section id="p2" class="page">
+  <div class="card">
+    <h2>Cursos & ABC</h2>
+    <div id="cursos_table">Carregando…</div>
+  </div>
+</section>
+
+<section id="p3" class="page">
+  <div class="card">
+    <h2>Capacidade & Grade</h2>
+    <div class="grid">
+      <div class="kpi">Salas<strong id="cap_salas">—</strong></div>
+      <div class="kpi">Turnos<strong id="cap_turnos">—</strong></div>
+      <div class="kpi">Slots (salas×turnos)<strong id="cap_slots">—</strong></div>
+      <div class="kpi">Alunos/turma<strong id="cap_alunos_turma">—</strong></div>
+      <div class="kpi">Capacidade total alunos<strong id="cap_total_alunos">—</strong></div>
+    </div>
+  </div>
+</section>
+
+<section id="p4" class="page">
+  <div class="card">
+    <h2>Fechamento do Mês – Comparativo (3 Unidades)</h2>
+    <div style="color:#4a5a52;margin:8px 0 12px">
+      Fonte: Google Sheets (Cajazeiras / Camaçari / São Cristóvão)
+    </div>
+
+    <!-- Cards executivos -->
+    <div id="fech_cards" class="grid"></div>
+
+    <!-- Tabelas por bloco -->
+    <div style="margin-top:14px">
+      <h3 style="margin:10px 0">Grau Técnico</h3>
+      <div id="fech_gt">Carregando…</div>
+    </div>
+
+    <div style="margin-top:14px">
+      <h3 style="margin:10px 0">Profissionalizante</h3>
+      <div id="fech_gp">Carregando…</div>
+    </div>
+
+    <div style="margin-top:14px">
+      <h3 style="margin:10px 0">Consolidado da Unidade</h3>
+      <div id="fech_ge">Carregando…</div>
+    </div>
+
+    <!-- Semáforo -->
+    <div style="margin-top:14px">
+      <h3 style="margin:10px 0">Performance (SIM / NÃO)</h3>
+      <div id="fech_perf">Carregando…</div>
+    </div>
+
+    <!-- Textos -->
+    <div style="margin-top:14px">
+      <h3 style="margin:10px 0">Observações & Plano de Ação</h3>
+      <div id="fech_textos">Carregando…</div>
+    </div>
+  </div>
+</section>
+
+
+<script src="./app.js"></script>
+
+<script>
+  // navegação
+  document.querySelectorAll(".tabbtn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll(".tabbtn").forEach(b=>b.classList.remove("active"));
+      document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById(btn.dataset.page).classList.add("active");
+    });
+  });
+</script>
+
+</body>
+</html>
