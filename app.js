@@ -1,20 +1,16 @@
 // ====== CONFIG (troque só isso) ======
 const SHEET_ID = "1sSk34SsgQ_2aAgr2Uqra4nVs9C0TVh-h"; // ex: 1ho2rVMQW-E4dnygqrhUPUHSnItYqhnq0
+const UNIDADES_SHEET_ID = "164MCqlJzWgUDeFzm8TxLhuxvX_-VeCPGQwrBvJIJWyQ"; // NOVA planilha 164MCqlJzWgUDeFzm8TxLhuxvX_-VeCPGQwrBvJIJWyQ
 
 const TABS = {
   DADOS: "DADOS_API",
   CURSOS: "CURSOS_ABC",
   TURNOS: "TURMAS_DECISAO",
-
-const UNIDADES_SHEET_ID = "164MCqlJzWgUDeFzm8TxLhuxvX_-VeCPGQwrBvJIJWyQ"; // NOVA planilha 164MCqlJzWgUDeFzm8TxLhuxvX_-VeCPGQwrBvJIJWyQ
-
-const TABS = {
   // novas abas
   CAJAZEIRAS: "Números Cajazeiras",
   CAMACARI: "Números Camaçari",
   SAO_CRISTOVAO: "Números São Cristóvão",
 };
-
 
 // ====== helpers ======
 const el = (id) => document.getElementById(id);
