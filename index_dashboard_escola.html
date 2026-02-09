@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dashboard – Gestão da Escola</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .tabcontent { display: none; }
+    .tabcontent.active { display: block; }
+    .tabs { margin: 12px 0; }
+    .tabs .tabbtn.active { border: 2px solid #1f6f4a; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Dashboard – Gestão da Escola</h1>
+  <div id="status" class="status">Inicializando…</div>
+
+  <div class="card">
+    <label>Período – Início</label>
+    <input type="date" id="f_ini">
+    <label>Período – Fim</label>
+    <input type="date" id="f_fim">
+    <label>Marca</label>
+    <select id="f_marca">
+      <option value="C">Consolidado</option>
+      <option value="T">Grau Técnico (T)</option>
+      <option value="P">Grau Profissionalizante (P)</option>
+    </select>
+    <label>Unidade</label>
+    <select id="f_unidade">
+      <option value="TODAS">Todas</option>
+      <option value="Cajazeiras">Cajazeiras</option>
+      <option value="Camaçari">Camaçari</option>
+      <option value="São Cristóvão">São Cristóvão</option>
+    </select>
+    <button id="f_apply">Aplicar</button>
+    <button id="f_reset">Padrão</button>
+    <p>Padrão: mês selecionado na aba <b>Config</b> da planilha.</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tabbtn active" data-tab="resumo">Resumo</button>
+    <button class="tabbtn" data-tab="cursos">Cursos & ABC</button>
+    <button class="tabbtn" data-tab="capacidade">Capacidade & Grade</button>
+    <button class="tabbtn" data-tab="fechamento">Fechamento – 3 Unidades</button>
+  </div>
+
+  <section id="resumo" class="tabcontent active"><h2>Resumo</h2><div>Em construção…</div></section>
+  <section id="cursos" class="tabcontent"><h2>Cursos & ABC</h2><div>Em construção…</div></section>
+  <section id="capacidade" class="tabcontent"><h2>Capacidade & Grade</h2><div>Em construção…</div></section>
+  <section id="fechamento" class="tabcontent">
+    <h2>Fechamento do Mês – Comparativo</h2>
+    <div id="fech_cards">Carregando…</div>
+  </section>
+</div>
+
+<script src="app.js"></script>
+<script>
+  const btns = document.querySelectorAll('.tabbtn');
+  const tabs = document.querySelectorAll('.tabcontent');
+  btns.forEach(btn => {
+    btn.onclick = () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      btns.forEach(b => b.classList.remove('active'));
+      document.getElementById(btn.dataset.tab).classList.add('active');
+      btn.classList.add('active');
+    };
+  });
+</script>
+</body>
+</html>
