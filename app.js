@@ -1,143 +1,106 @@
-// =====================================================
-// DASHBOARD – APP.JS (VERSÃO ESTÁVEL)
-// =====================================================
-
-// ================= CONFIG =============================
-const SHEET_ID = "1sSk34SsgQ_2aAgr2Uqra4nVs9C0TVh-h"; 
+// ================= CONFIG =================
+const SHEET_ID = "1sSk34SsgQ_2aAgr2Uqra4nVs9C0TVh-h";
 const UNIDADES_SHEET_ID = "164MCqlJzWgUDeFzm8TxLhuxvX_-VeCPGQwrBvJIJWyQ";
 
 const TABS = {
-  DADOS: "DADOS_API",
-  CURSOS: "CURSOS_ABC",
-  TURNOS: "TURMAS_DECISAO",
-  CONFIG: "CONFIG_API",
-  CAJAZEIRAS: "Números Cajazeiras",
-  CAMACARI: "Números Camaçari",
-  SAO_CRISTOVAO: "Números São Cristóvão",
+  CONFIG: "Config",
+  CAJ: "Números Cajazeiras",
+  CAM: "Números Camaçari",
+  SAO: "Números São Cristóvão"
 };
 
-// ================= ESTADO GLOBAL ======================
+// ================= STATE ==================
 const state = {
   periodoInicio: null,
   periodoFim: null,
-  marca: "C",          // C | T | P
-  unidade: "TODAS",    // TODAS | Cajazeiras | Camaçari | São Cristóvão
+  marca: "C",
+  unidade: "TODAS"
 };
 
-// ================= UTIL ===============================
+// ================= UTIL ===================
 const $ = id => document.getElementById(id);
 
-function pad(n) { return String(n).padStart(2, "0"); }
-function iso(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
-function firstDay(isoDate) {
-  const d = new Date(isoDate);
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-01`;
+function iso(d){
+  return d.toISOString().slice(0,10);
+}
+function firstDay(y,m){
+  return `${y}-${String(m).padStart(2,"0")}-01`;
+}
+function lastDay(y,m){
+  return `${y}-${String(m).padStart(2,"0")}-31`;
 }
 
-function fmt(v, money = false) {
-  if (v === "" || v === null || v === undefined) return "—";
-  const n = Number(v);
-  if (!isNaN(n)) {
-    return money ? n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}) : n.toLocaleString("pt-BR");
-  }
-  return v;
-}
-
-// ================= SHEETS =============================
-function sheetIdByTab(tab) {
-  return (
-    tab === TABS.CAJAZEIRAS ||
-    tab === TABS.CAMACARI ||
-    tab === TABS.SAO_CRISTOVAO
-  ) ? UNIDADES_SHEET_ID : SHEET_ID;
-}
-
-async function fetchSheet(tab) {
-  const url =
-    `https://docs.google.com/spreadsheets/d/${sheetIdByTab(tab)}/gviz/tq?` +
-    `sheet=${encodeURIComponent(tab)}&tq=${encodeURIComponent("select A,B")}`;
-
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Erro ao carregar ${tab}`);
-
-  const text = await res.text();
-  const json = JSON.parse(text.substring(text.indexOf("{"), text.lastIndexOf("}") + 1));
-  return json.table.rows.map(r => ({
-    key: r.c[0]?.v,
-    value: r.c[1]?.v
+// ================= SHEETS =================
+async function fetchSheet(sheetId, tab){
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?sheet=${encodeURIComponent(tab)}`;
+  const r = await fetch(url);
+  const t = await r.text();
+  const j = JSON.parse(t.substring(t.indexOf("{"), t.lastIndexOf("}")+1));
+  return j.table.rows.map(r => ({
+    k: r.c[0]?.v,
+    v: r.c[1]?.v
   }));
 }
 
-function rowsToObj(rows) {
+function rowsToObj(rows){
   const o = {};
-  rows.forEach(r => { if (r.key) o[r.key] = r.value; });
+  rows.forEach(r => o[r.k] = r.v);
   return o;
 }
 
-// ================= CONFIG PADRÃO ======================
-async function loadDefaultConfig() {
-  const hoje = new Date();
-
+// ================= CONFIG LOAD =============
+async function loadConfig(){
   try {
-    const rows = await fetchSheet("Config");
-    const cfg = rowsToObj(rows);
-
-    const mm = String(cfg["Mês (mm)"]).padStart(2, "0");
+    const cfg = rowsToObj(await fetchSheet(SHEET_ID, TABS.CONFIG));
+    const mm = String(cfg["Mês (mm)"]).padStart(2,"0");
     const aa = "20" + cfg["Ano (aa)"];
 
-    state.periodoInicio = `${aa}-${mm}-01`;
-    state.periodoFim = `${aa}-${mm}-31`;
-    state.marca = "C";
-    state.unidade = "TODAS";
+    state.periodoInicio = firstDay(aa, mm);
+    state.periodoFim = lastDay(aa, mm);
 
   } catch {
-    state.periodoInicio = firstDay(iso(hoje));
-    state.periodoFim = iso(hoje);
-    state.marca = "C";
-    state.unidade = "TODAS";
+    const d = new Date();
+    state.periodoInicio = firstDay(d.getFullYear(), d.getMonth()+1);
+    state.periodoFim = iso(d);
   }
 }
 
-// ================= UI ================================
-function syncFilters() {
+// ================= UI =====================
+function syncUI(){
   $("f_ini").value = state.periodoInicio;
   $("f_fim").value = state.periodoFim;
   $("f_marca").value = state.marca;
   $("f_unidade").value = state.unidade;
 
-  $("status").textContent =
+  $("status").innerText =
     `Período: ${state.periodoInicio} → ${state.periodoFim} | Marca: ${state.marca} | Unidade: ${state.unidade}`;
 }
 
-// ================= RENDER =============================
-async function renderFechamento() {
-  const unidades = {
-    Cajazeiras: TABS.CAJAZEIRAS,
-    Camaçari: TABS.CAMACARI,
-    "São Cristóvão": TABS.SAO_CRISTOVAO
+// ================= FECHAMENTO =============
+async function renderFechamento(){
+  const map = {
+    Cajazeiras: TABS.CAJ,
+    Camaçari: TABS.CAM,
+    "São Cristóvão": TABS.SAO
   };
 
-  const ativos = state.unidade === "TODAS"
-    ? Object.keys(unidades)
+  const prefix = state.marca === "T" ? "gt_" :
+                 state.marca === "P" ? "gp_" : "ge_";
+
+  const unidades = state.unidade === "TODAS"
+    ? Object.keys(map)
     : [state.unidade];
 
   let html = "";
 
-  for (const u of ativos) {
-    const data = rowsToObj(await fetchSheet(unidades[u]));
+  for (const u of unidades){
+    const data = rowsToObj(await fetchSheet(UNIDADES_SHEET_ID, map[u]));
     html += `
       <div class="card">
         <h3>${u}</h3>
-        const prefix = state.marca === "T" ? "gt_" : (state.marca === "P" ? "gp_" : "ge_");
-
-        const fatKey = prefix + "faturamento";
-        const matKey = prefix + "matriculas";
-        const atiKey = prefix + "ativos";
-        
-        <p>Faturamento: <strong>${fmt(data[fatKey], true)}</strong></p>
-        <p>Matrículas: <strong>${fmt(data[matKey])}</strong></p>
-        <p>Ativos: <strong>${fmt(data[atiKey])}</strong></p>
-
+        Faturamento: ${data[prefix+"faturamento"] ?? "—"}<br>
+        Matrículas: ${data[prefix+"matriculas"] ?? "—"}<br>
+        Ativos: ${data[prefix+"ativos"] ?? "—"}
       </div>
     `;
   }
@@ -145,28 +108,28 @@ async function renderFechamento() {
   $("fech_cards").innerHTML = html;
 }
 
-// ================= EVENTOS ===========================
-function wireUI() {
+// ================= EVENTS =================
+function bind(){
   $("f_apply").onclick = async () => {
     state.periodoInicio = $("f_ini").value;
     state.periodoFim = $("f_fim").value;
     state.marca = $("f_marca").value;
     state.unidade = $("f_unidade").value;
+    syncUI();
     await renderFechamento();
-    syncFilters();
   };
 
   $("f_reset").onclick = async () => {
-    await loadDefaultConfig();
-    syncFilters();
+    await loadConfig();
+    syncUI();
     await renderFechamento();
   };
 }
 
-// ================= START =============================
+// ================= START ==================
 window.onload = async () => {
-  await loadDefaultConfig();
-  syncFilters();
-  wireUI();
+  await loadConfig();
+  syncUI();
+  bind();
   await renderFechamento();
 };
