@@ -92,7 +92,7 @@
 
   // ================= GViz fetch =================
   async function fetchGviz(sheetId, tab) {
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?sheet=${encodeURIComponent(tab)}`;
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?sheet=${encodeURIComponent(tab)}&headers=0`;
     const res = await fetch(url);
     const txt = await res.text();
     const json = JSON.parse(txt.substring(txt.indexOf("{"), txt.lastIndexOf("}") + 1));
