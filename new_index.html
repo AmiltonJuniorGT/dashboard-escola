@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard – Gestão da Escola</title>
+  <link rel="stylesheet" href="styles.css?v=20260211" />
+</head>
+<body>
+  <div class="container">
+    <h1>Dashboard – Gestão da Escola</h1>
+
+    <div id="status" class="status">Inicializando...</div>
+
+    <div class="card">
+      <div class="filters">
+        <div class="f">
+          <label>Período – Início</label>
+          <input id="f_start" type="date" />
+        </div>
+        <div class="f">
+          <label>Período – Fim</label>
+          <input id="f_end" type="date" disabled />
+        </div>
+        <div class="f">
+          <label>Marca</label>
+          <select id="f_marca"></select>
+        </div>
+        <div class="f">
+          <label>Unidade</label>
+          <select id="f_unidade"></select>
+        </div>
+        <div class="f actions">
+          <button id="btn_apply">Aplicar</button>
+          <button id="btn_default" class="ghost">Padrão</button>
+        </div>
+      </div>
+      <div class="hint">
+        Padrão: último mês disponível no cabeçalho (aba <b>Números ...</b>). Você pode trocar o mês alterando a data de início.
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tabBtn" data-tab="tab_resumo">Resumo</button>
+      <button class="tabBtn" data-tab="tab_cursos">Cursos &amp; ABC</button>
+      <button class="tabBtn" data-tab="tab_capacidade">Capacidade &amp; Grade</button>
+      <button class="tabBtn active" data-tab="tab_fechamento">Fechamento – 3 Unidades</button>
+    </div>
+
+    <div id="tab_resumo" class="tabPanel">
+      <div class="card"><h2>Resumo</h2><p>Em construção…</p></div>
+    </div>
+
+    <div id="tab_cursos" class="tabPanel">
+      <div class="card"><h2>Cursos &amp; ABC</h2><p>Em construção…</p></div>
+    </div>
+
+    <div id="tab_capacidade" class="tabPanel">
+      <div class="card"><h2>Capacidade &amp; Grade</h2><p>Em construção…</p></div>
+    </div>
+
+    <div id="tab_fechamento" class="tabPanel"></div>
+
+    <div class="footer">Visão Mobile • Tons de verde • GitHub Pages</div>
+  </div>
+
+  <script src="app.js?v=20260211"></script>
+</body>
+</html>
