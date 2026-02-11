@@ -1,24 +1,27 @@
 /* =========================================================
-   Dashboard – Fechamento (3 Unidades) – versão estável (Sheets por mês em colunas)
+   Dashboard – Fechamento (3 Unidades) – versão estável
+   (meses em colunas e cabeçalho em qualquer linha)
+
    Fonte: Planilha "Plano de Ação Co Gestão"
    ID: 1d4G--uvR-fjdn4gP8HM7r69SCHG_6bZNBpe_97Zx3Go
 
    Estrutura esperada nas abas (unidades):
    - Coluna A: nome do índice/indicador
-   - Colunas seguintes: meses (ex: janeiro.23 / jan.23 / jan/23 / janeiro 2023 etc)
+   - Alguma linha (não necessariamente a 1ª) contém os meses nas colunas (ex: janeiro.23)
    - Abas = unidades (Cajazeiras / Camaçari / São Cristóvão)
 
    Esta versão:
-   - tolera vários formatos de cabeçalho de mês
+   - encontra automaticamente a linha que contém os meses
+   - aceita: "janeiro.23", "jan.23", "jan/23", "janeiro 2023" etc
    - não quebra se faltar algum mês (M-1/M-2/M-3/Ano-1)
-   - separa blocos "TÉCNICO" e "PROFISSIONALIZANTE" (mesmo índice aparece em ambos)
+   - separa blocos "TÉCNICO" e "PROFISSIONALIZANTE"
    ========================================================= */
 
 (() => {
   // ================= CONFIG =================
   const DATA_SHEET_ID = "1d4G--uvR-fjdn4gP8HM7r69SCHG_6bZNBpe_97Zx3Go";
 
-  // chaves SEM acento/espaço (evita erros de sintaxe)
+  // chaves SEM acento/espaço (evita erros de sintaxe e de edição)
   const TABS_UNIDADES = {
     Cajazeiras: "Números Cajazeiras",
     Camacari: "Números Camaçari",
@@ -92,14 +95,15 @@
 
   // ================= GViz fetch =================
   async function fetchGviz(sheetId, tab) {
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?sheet=${encodeURIComponent(tab)}&headers=0`;
+    // headers=0 => NÃO assume cabeçalho na 1ª linha (sua planilha tem título acima)
+    const url =
+      `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?sheet=${encodeURIComponent(tab)}&headers=0`;
+
     const res = await fetch(url);
     const txt = await res.text();
     const json = JSON.parse(txt.substring(txt.indexOf("{"), txt.lastIndexOf("}") + 1));
-
-    const cols = json.table.cols.map((c) => (c.label ?? "").trim());
     const rows = json.table.rows.map((r) => r.c.map((cell) => (cell ? cell.v : null)));
-    return { cols, rows };
+    return { rows };
   }
 
   // ================= Meses (colunas) =================
@@ -124,7 +128,6 @@
 
     const cleaned = stripAccents(raw).toUpperCase();
     // aceita: "janeiro.23", "janeiro 23", "janeiro/23", "jan.23", "jan/23", "jan 23", "janeiro.2023"
-    // e também "janeiro.23*" etc.
     const m = cleaned.match(/^([A-ZÇ]+)[\.\s\/-]?(\d{2}|\d{4})/);
     if (!m) return null;
 
@@ -155,11 +158,29 @@
     return { y, m };
   }
 
-  function buildMonthCols(cols) {
+  // Encontra a "linha de meses" (onde várias colunas parecem mês)
+  function findMonthHeaderRow(rows) {
+    let best = { idx: -1, hits: 0, header: null };
+
+    for (let i = 0; i < Math.min(rows.length, 30); i++) {
+      const r = rows[i] || [];
+      let hits = 0;
+      for (let j = 0; j < r.length; j++) {
+        if (parseMonthLabel(r[j])) hits++;
+      }
+      if (hits > best.hits) best = { idx: i, hits, header: r };
+    }
+
+    // precisa ter pelo menos 2 meses para considerar cabeçalho válido
+    if (best.idx >= 0 && best.hits >= 2) return best;
+    return null;
+  }
+
+  function buildMonthColsFromHeaderRow(headerRow) {
     const monthCols = [];
-    for (let i = 0; i < cols.length; i++) {
-      const mk = parseMonthLabel(cols[i]);
-      if (mk) monthCols.push({ idx: i, mk, keyNum: mkToKeyNum(mk), raw: cols[i] });
+    for (let j = 0; j < headerRow.length; j++) {
+      const mk = parseMonthLabel(headerRow[j]);
+      if (mk) monthCols.push({ idx: j, mk, keyNum: mkToKeyNum(mk), raw: String(headerRow[j]) });
     }
     monthCols.sort((a, b) => a.keyNum - b.keyNum);
     const byKey = new Map(monthCols.map((c) => [c.keyNum, c.idx]));
@@ -172,14 +193,14 @@
     let start = -1;
 
     for (let i = 0; i < rows.length; i++) {
-      const a = norm(rows[i][0]);
+      const a = norm(rows[i]?.[0]);
       if (a.includes(n)) { start = i + 1; break; }
     }
     if (start < 0) return null;
 
     let end = rows.length;
     for (let i = start; i < rows.length; i++) {
-      const a = norm(rows[i][0]);
+      const a = norm(rows[i]?.[0]);
       if (a.includes("PLANILHA DE INDICADORES") && i > start) { end = i; break; }
       if (a.includes("FACULDADE")) { end = i; break; }
       if (a.includes("GRAU EDUCACIONAL") && i > start) { end = i; break; }
@@ -190,7 +211,7 @@
   function findRowIndexInRange(rows, range, needles) {
     const ns = needles.map(norm);
     for (let i = range.start; i < range.end; i++) {
-      const a = norm(rows[i][0]);
+      const a = norm(rows[i]?.[0]);
       if (!a) continue;
       for (const nn of ns) {
         if (a === nn || a.includes(nn)) return i;
@@ -215,7 +236,7 @@
   function getMetric(rows, range, metric, colIdx) {
     const rowIdx = findRowIndexInRange(rows, range, metric.needles);
     if (rowIdx < 0) return null;
-    return parseBR(rows[rowIdx][colIdx]);
+    return parseBR(rows[rowIdx]?.[colIdx]);
   }
 
   function buildComparative(rows, range, byKey, mkCur) {
@@ -321,9 +342,12 @@
   // ================= RENDER =================
   async function resolveMonthOptions() {
     // usa Cajazeiras apenas para descobrir todos os meses disponíveis
-    const { cols } = await fetchGviz(DATA_SHEET_ID, TABS_UNIDADES.Cajazeiras);
-    const { monthCols } = buildMonthCols(cols);
-    return monthCols;
+    const { rows } = await fetchGviz(DATA_SHEET_ID, TABS_UNIDADES.Cajazeiras);
+    const hdr = findMonthHeaderRow(rows);
+    if (!hdr) return { monthCols: [], byKey: new Map() };
+
+    const { monthCols, byKey } = buildMonthColsFromHeaderRow(hdr.header);
+    return { monthCols, byKey };
   }
 
   async function renderFechamento() {
@@ -333,9 +357,9 @@
     ensureInlineStyles();
     container.innerHTML = "Carregando…";
 
-    const monthCols = await resolveMonthOptions();
+    const { monthCols } = await resolveMonthOptions();
     if (!monthCols.length) {
-      container.innerHTML = `<div class="fech-error">Não encontrei colunas de mês no cabeçalho (ex: janeiro.23). Confirme se os meses estão na linha do cabeçalho.</div>`;
+      container.innerHTML = `<div class="fech-error">Não encontrei colunas de mês (ex: janeiro.23). Confirme se os meses estão em alguma linha (não no topo do arquivo).</div>`;
       return;
     }
 
@@ -379,8 +403,15 @@
       const tab = TABS_UNIDADES[k];
       const label = UNIDADE_LABEL[k] ?? k;
 
-      const { cols, rows } = await fetchGviz(DATA_SHEET_ID, tab);
-      const { byKey } = buildMonthCols(cols);
+      const { rows } = await fetchGviz(DATA_SHEET_ID, tab);
+
+      const hdr = findMonthHeaderRow(rows);
+      if (!hdr) {
+        content += `<div class="fech-error"><b>${label}</b>: não consegui localizar a linha com os meses (ex: janeiro.23).</div>`;
+        continue;
+      }
+
+      const { byKey } = buildMonthColsFromHeaderRow(hdr.header);
 
       const rgTec = findSectionRange(rows, "TECNICO");
       const rgPro = findSectionRange(rows, "PROFISSIONALIZANTE");
@@ -397,19 +428,11 @@
         continue;
       }
 
-      if (rgTec) {
-        const rowsTec = buildComparative(rows, rgTec, byKey, mkCur);
-        content += renderBlock("Grau Técnico", rowsTec, mkCur);
-      } else {
-        content += `<div class="fech-error">Bloco TÉCNICO não encontrado.</div>`;
-      }
+      if (rgTec) content += renderBlock("Grau Técnico", buildComparative(rows, rgTec, byKey, mkCur), mkCur);
+      else content += `<div class="fech-error">Bloco TÉCNICO não encontrado.</div>`;
 
-      if (rgPro) {
-        const rowsPro = buildComparative(rows, rgPro, byKey, mkCur);
-        content += renderBlock("Profissionalizante", rowsPro, mkCur);
-      } else {
-        content += `<div class="fech-error">Bloco PROFISSIONALIZANTE não encontrado.</div>`;
-      }
+      if (rgPro) content += renderBlock("Profissionalizante", buildComparative(rows, rgPro, byKey, mkCur), mkCur);
+      else content += `<div class="fech-error">Bloco PROFISSIONALIZANTE não encontrado.</div>`;
     }
 
     container.innerHTML = topbar + content;
@@ -432,7 +455,7 @@
 
     if (btnLast) btnLast.onclick = async () => {
       state.unidade = selU ? selU.value : state.unidade;
-      const monthCols2 = await resolveMonthOptions();
+      const { monthCols: monthCols2 } = await resolveMonthOptions();
       state.monthKey = monthCols2.length ? monthCols2[monthCols2.length - 1].mk : state.monthKey;
       await renderFechamento();
     };
