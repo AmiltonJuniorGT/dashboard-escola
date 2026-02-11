@@ -105,12 +105,29 @@ function parseMonthLabel(label) {
   if (!raw) return null;
 
   const cleaned = stripAccents(raw).toUpperCase();
-  // aceita: "janeiro.23" "jan.23" "janeiro 23" "janeiro/23"
-  const m = cleaned.match(/^([A-ZÇ]+)[\.\s\/-]?(\d{2}|\d{4})$/);
+
+  // aceita: "janeiro.23", "janeiro 23", "janeiro/23", "jan.23", "jan/23", "jan 23", "janeiro.2023"
+  const m = cleaned.match(/^([A-ZÇ]+)[\.\s\/-]?(\d{2}|\d{4})/);
   if (!m) return null;
 
   const name = m[1];
   const yy = m[2];
+
+  const PT_MONTHS = {
+    JANEIRO: 1, JAN: 1,
+    FEVEREIRO: 2, FEV: 2,
+    MARCO: 3, MARÇO: 3, MAR: 3,
+    ABRIL: 4, ABR: 4,
+    MAIO: 5, MAI: 5,
+    JUNHO: 6, JUN: 6,
+    JULHO: 7, JUL: 7,
+    AGOSTO: 8, AGO: 8,
+    SETEMBRO: 9, SET: 9,
+    OUTUBRO: 10, OUT: 10,
+    NOVEMBRO: 11, NOV: 11,
+    DEZEMBRO: 12, DEZ: 12,
+  };
+
   const month = PT_MONTHS[name];
   if (!month) return null;
 
@@ -120,20 +137,6 @@ function parseMonthLabel(label) {
   return { y: year, m: month };
 }
 
-function monthToKeyNum(mk) {
-  return mk.y * 100 + mk.m;
-}
-function monthKeyToLabel(mk) {
-  const names = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-  return `${names[mk.m]}.${String(mk.y).slice(-2)}`;
-}
-function shiftMonth(mk, delta) {
-  let y = mk.y;
-  let m = mk.m + delta;
-  while (m <= 0) { m += 12; y -= 1; }
-  while (m > 12) { m -= 12; y += 1; }
-  return { y, m };
-}
 
 // ================= Section ranges =================
 function findSectionRange(rows, headerNeedle) {
