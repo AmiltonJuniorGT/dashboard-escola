@@ -1,8 +1,8 @@
 const DATA_SHEET_ID = "12PUef42a3r3_fxJS8SulkbeXoGP3COtN";
 const TABS_UNIDADES = {
   Cajazeiras: "Números Cajazeiras",
-  Camaçari: "Números Camaçari",
-  "São Cristóvão": "Números Sao Cristovao"
+  //Camaçari: "Números Camaçari",
+ //"São Cristóvão": "Números Sao Cristovao"
 };
 
 const state = {
