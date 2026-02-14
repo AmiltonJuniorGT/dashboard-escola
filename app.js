@@ -1,38 +1,40 @@
 /**
  * KPIs GT — Leitura via SheetID (GVIZ) — SEM WebApp
  * - Lê a aba (unidade)
- * - Renderiza tabela
- * - Filtro de período (início/fim) filtrando colunas de meses
- * - Motor Fechamento: mês atual + últimos 3 meses do ano + mesmo mês ano anterior
- * - Não mostra meses abaixo do botão
- * - Não mostra JSON (a não ser DEBUG=true)
- *
- * IDs esperados no HTML:
- *  - btnCarregar
- *  - status
- *  - preview
- *  - meses (opcional, será ocultado)
- *  - json  (opcional, será ocultado por padrão)
- *  - periodoInicio (opcional, input type="date")
- *  - periodoFim    (opcional, input type="date")
- *  - btnAplicar    (opcional)
+ * - Seletor de mês base (default = último mês)
+ * - Cards com setas e cores (vs mês anterior e vs mesmo mês ano anterior)
+ * - Tabela abaixo
  */
 
-// =======================
-// CONFIG
-// =======================
 const CONFIG = {
   SHEET_ID: "1d4G--uvR-fjdn4gP8HM7r69SCHG_6bZNBpe_97Zx3Go",
-  TAB_NAME: "Números Cajazeiras",
+  // abas/unidades (você vai ajustar depois)
+  UNIDADES: [
+    { label: "Cajazeiras", tab: "Números Cajazeiras" },
+    { label: "Camaçari", tab: "Números Camaçari" },
+    { label: "São Cristóvão", tab: "Números São Cristóvão" },
+  ],
   PREVIEW_ROWS: 9999,
   DEBUG: false,
 };
 
-let LAST_RAW = null;      // { header, rows }
-let LAST_RENDER = null;   // filtrado
+// Indicadores para os cards (ajuste nomes conforme sua planilha)
+const KPI_CONFIG = [
+  { key: "FATURAMENTO T (R$)", label: "Faturamento", better: "up", fmt: "brl" },
+  { key: "CUSTO TOTAL T (R$)", label: "Custo Total", better: "down", fmt: "brl" },
+  { key: "ALUNOS ATIVOS T", label: "Ativos", better: "up", fmt: "int" },
+  { key: "META DE MATRÍCULA", label: "Meta", better: "up", fmt: "int" },
+  { key: "MATRÍCULAS REALIZADAS", label: "Matrículas", better: "up", fmt: "int" },
+  { key: "CONVERSÃO (%)", label: "Conversão", better: "up", fmt: "pct" },
+  { key: "INADIMPLÊNCIA (META 9,3%)", label: "Inadimplência", better: "down", fmt: "pct" },
+  { key: "EVASÃO REAL (META 4,8%)", label: "Evasão", better: "down", fmt: "pct" },
+];
+
+let LAST_RAW = null;     // { header, rows } da aba selecionada
+let LAST_SERIES = null;  // series por mês
 
 // -----------------------
-// Helpers DOM
+// DOM
 // -----------------------
 function $(id) { return document.getElementById(id); }
 
@@ -82,6 +84,7 @@ function parseMonthKeyFromHeader(label) {
 
   const mes = map[nome];
   if (!mes) return null;
+
   return `${ano}-${String(mes).padStart(2, "0")}`;
 }
 
@@ -102,6 +105,13 @@ function addMonths(monthKey, delta) {
 
 function getYear(monthKey) {
   return Number(monthKey.split("-")[0]);
+}
+
+function formatMonthKeyBR(monthKey) {
+  // "2025-12" -> "dez/25"
+  const [y, m] = monthKey.split("-").map(Number);
+  const map = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+  return `${map[m - 1]}/${String(y).slice(2)}`;
 }
 
 function toNumberSmart(v) {
@@ -158,53 +168,7 @@ function tableToMatrix(table) {
 }
 
 // -----------------------
-// Filtro início/fim (filtra colunas de mês)
-// -----------------------
-function parseDateInput(id) {
-  const el = $(id);
-  if (!el || !el.value) return null;
-  const [y, m, d] = el.value.split("-").map(Number);
-  if (!y || !m) return null;
-  return new Date(y, m - 1, d || 1);
-}
-
-function endOfMonth(dt) {
-  return new Date(dt.getFullYear(), dt.getMonth() + 1, 0);
-}
-
-function filterByPeriod(raw, inicio, fim) {
-  if (!inicio && !fim) return raw;
-
-  const start = inicio ? new Date(inicio.getFullYear(), inicio.getMonth(), 1) : null;
-  const end = fim ? endOfMonth(fim) : null;
-
-  const keepIdx = [0]; // mantém indicador
-
-  for (let i = 1; i < raw.header.length; i++) {
-    const h = raw.header[i];
-    if (!isMonthLabelBR(h)) continue;
-
-    const key = parseMonthKeyFromHeader(h);
-    if (!key) continue;
-    const colDate = monthKeyToDate(key);
-    if (!colDate) continue;
-
-    const colStart = new Date(colDate.getFullYear(), colDate.getMonth(), 1);
-    const colEnd = endOfMonth(colDate);
-
-    const okStart = start ? (colEnd >= start) : true;
-    const okEnd = end ? (colStart <= end) : true;
-
-    if (okStart && okEnd) keepIdx.push(i);
-  }
-
-  const header = keepIdx.map(i => raw.header[i]);
-  const rows = raw.rows.map(r => keepIdx.map(i => r[i] ?? ""));
-  return { header, rows };
-}
-
-// -----------------------
-// Motor Fechamento
+// Série por mês + Fechamento
 // -----------------------
 function matrixToSeriesByMonth(header, rows) {
   const monthCols = [];
@@ -256,9 +220,9 @@ function buildFechamento(series, monthKeyCurrent = null) {
   const mesAnoAnterior = addMonths(mesAtual, -12);
   const anoAnteriorExiste = mesAnoAnterior && series[mesAnoAnterior] ? mesAnoAnterior : null;
 
-  // variações por indicador (opcional, já fica pronto)
-  const indicadores = new Set(Object.keys(series[mesAtual] || {}));
   const variacoes = {};
+  const indicadores = new Set(Object.keys(series[mesAtual] || {}));
+
   indicadores.forEach(ind => {
     const atual = series[mesAtual]?.[ind] ?? null;
     const ant = (m1 && series[m1]) ? (series[m1][ind] ?? null) : null;
@@ -281,15 +245,148 @@ function buildFechamento(series, monthKeyCurrent = null) {
 }
 
 // -----------------------
-// Render
+// UI: mês base + unidade
 // -----------------------
-function hideMesesArea() {
-  const el = $("meses");
-  if (!el) return;
-  el.textContent = "";
-  el.style.display = "none";
+function fillUnidadeOptions() {
+  const sel = $("unidade");
+  if (!sel) return;
+
+  sel.innerHTML = "";
+  CONFIG.UNIDADES.forEach(u => {
+    const opt = document.createElement("option");
+    opt.value = u.tab;
+    opt.textContent = u.label;
+    sel.appendChild(opt);
+  });
+
+  // default: Cajazeiras
+  sel.value = CONFIG.UNIDADES[0]?.tab || CONFIG.TAB_NAME;
 }
 
+function fillMesBaseOptions(series) {
+  const sel = $("mesBase");
+  if (!sel) return;
+
+  const keys = Object.keys(series).sort();
+  sel.innerHTML = "";
+  keys.forEach(k => {
+    const opt = document.createElement("option");
+    opt.value = k;
+    opt.textContent = formatMonthKeyBR(k);
+    sel.appendChild(opt);
+  });
+
+  const current = pickCurrentMonthKey(series) || keys[keys.length - 1];
+  if (current) sel.value = current;
+}
+
+// -----------------------
+// Render: cards setas/cores
+// -----------------------
+function fmtValue(val, fmt) {
+  if (val === null || val === undefined || val === "") return "—";
+  if (typeof val === "number") {
+    if (fmt === "brl") return val.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    if (fmt === "pct") return `${val.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
+    if (fmt === "int") return val.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+    return val.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+  }
+  return safeText(val);
+}
+
+function trendMeta(delta, better) {
+  if (delta === null || delta === undefined) return { arrow: "→", cls: "neutral", sign: "" };
+  if (delta === 0) return { arrow: "→", cls: "neutral", sign: "" };
+
+  const isUp = delta > 0;
+  const good = (better === "up") ? isUp : !isUp;
+
+  return { arrow: isUp ? "▲" : "▼", cls: good ? "good" : "bad", sign: delta > 0 ? "+" : "" };
+}
+
+function renderFechamentoText(fechamento) {
+  const box = $("fechamento");
+  if (!box) return;
+
+  const ult3 = fechamento.ultimos3AnoCorrente.map(formatMonthKeyBR).join(" | ");
+  box.textContent =
+    `Mês base: ${formatMonthKeyBR(fechamento.mesAtual)}\n` +
+    `Últimos 3 (ano corrente): ${ult3 || "—"}\n` +
+    `Mesmo mês ano anterior: ${fechamento.mesAnoAnterior ? formatMonthKeyBR(fechamento.mesAnoAnterior) : "—"}\n`;
+}
+
+function renderKPICards(fechamento) {
+  const wrap = $("cardsKPI");
+  if (!wrap) return;
+
+  wrap.innerHTML = "";
+  wrap.style.display = "grid";
+  wrap.style.gridTemplateColumns = "repeat(auto-fit, minmax(220px, 1fr))";
+  wrap.style.gap = "12px";
+  wrap.style.margin = "12px 0";
+
+  const mBase = fechamento.mesAtual;
+  const m1 = addMonths(mBase, -1);
+  const m12 = fechamento.mesAnoAnterior;
+
+  KPI_CONFIG.forEach(kpi => {
+    const v = fechamento.variacoes?.[kpi.key] || {};
+    const atual = v.atual;
+    const dMes = v.deltaMesAnterior;
+    const dAno = v.deltaAnoAnterior;
+
+    const tMes = trendMeta(dMes, kpi.better);
+    const tAno = trendMeta(dAno, kpi.better);
+
+    const card = document.createElement("div");
+    card.style.border = "1px solid rgba(0,0,0,.12)";
+    card.style.borderRadius = "12px";
+    card.style.padding = "12px";
+    card.style.background = "white";
+
+    const title = document.createElement("div");
+    title.style.fontWeight = "800";
+    title.style.marginBottom = "8px";
+    title.textContent = kpi.label;
+
+    const value = document.createElement("div");
+    value.style.fontSize = "20px";
+    value.style.fontWeight = "900";
+    value.style.marginBottom = "8px";
+    value.textContent = fmtValue(atual, kpi.fmt);
+
+    function line(label, t, delta, refTxt) {
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.justifyContent = "space-between";
+      row.style.gap = "10px";
+      row.style.fontSize = "13px";
+
+      const left = document.createElement("span");
+      left.textContent = `${label} ${refTxt}`;
+
+      const right = document.createElement("span");
+      right.textContent = `${t.arrow} ${t.sign}${fmtValue(delta, kpi.fmt === "pct" ? "pct" : "num")}`;
+      right.style.fontWeight = "800";
+      right.style.color = t.cls === "good" ? "#16794C" : t.cls === "bad" ? "#B42318" : "#555";
+
+      row.appendChild(left);
+      row.appendChild(right);
+      return row;
+    }
+
+    card.appendChild(title);
+    card.appendChild(value);
+    card.appendChild(line("vs", tMes, dMes, m1 ? formatMonthKeyBR(m1) : "M-1"));
+    card.appendChild(line("vs", tAno, dAno, m12 ? formatMonthKeyBR(m12) : "ano ant."));
+
+    wrap.appendChild(card);
+  });
+}
+
+// -----------------------
+// Render: tabela
+// -----------------------
 function renderTable(header, rows) {
   const el = $("preview");
   if (!el) return;
@@ -313,12 +410,7 @@ function renderTable(header, rows) {
 function renderJSON(obj) {
   const el = $("json");
   if (!el) return;
-
-  if (!CONFIG.DEBUG) {
-    el.textContent = "";
-    el.style.display = "none";
-    return;
-  }
+  if (!CONFIG.DEBUG) return;
   el.style.display = "block";
   el.textContent = JSON.stringify(obj, null, 2);
 }
@@ -327,74 +419,69 @@ function renderJSON(obj) {
 // Actions
 // -----------------------
 async function carregarDados() {
-  hideMesesArea();
-
   try {
-    const table = await fetchGvizTable(CONFIG.SHEET_ID, CONFIG.TAB_NAME);
+    const selUnidade = $("unidade");
+    const tab = selUnidade && selUnidade.value ? selUnidade.value : (CONFIG.UNIDADES[0]?.tab || "Números Cajazeiras");
+
+    const table = await fetchGvizTable(CONFIG.SHEET_ID, tab);
     const raw = tableToMatrix(table);
+
     LAST_RAW = raw;
 
-    aplicarFiltroPeriodo(); // render + motor
+    const { series } = matrixToSeriesByMonth(raw.header, raw.rows);
+    LAST_SERIES = series;
+
+    fillMesBaseOptions(series);
+
+    setStatus("Dados carregados.", "success");
+
+    aplicar();
   } catch (err) {
     console.error(err);
     setStatus(`ERRO: ${err.message}`, "error");
   }
 }
 
-function aplicarFiltroPeriodo() {
-  if (!LAST_RAW) {
-    setStatus("Carregue os dados primeiro.", "warn");
+function aplicar() {
+  if (!LAST_RAW || !LAST_SERIES) {
+    setStatus("Clique em Carregar primeiro.", "warn");
     return;
   }
 
-  const inicio = parseDateInput("periodoInicio");
-  const fim = parseDateInput("periodoFim");
+  const selMes = $("mesBase");
+  const mesEscolhido = selMes && selMes.value ? selMes.value : null;
 
-  const filtered = filterByPeriod(LAST_RAW, inicio, fim);
-  LAST_RENDER = filtered;
-
-  renderTable(filtered.header, filtered.rows);
-  setStatus("Dados carregados.", "success");
-
-  // MOTOR FECHAMENTO (usa a tabela completa, não a filtrada)
-  const { series } = matrixToSeriesByMonth(LAST_RAW.header, LAST_RAW.rows);
-  const fechamento = buildFechamento(series);
-
+  const fechamento = buildFechamento(LAST_SERIES, mesEscolhido);
   console.log("FECHAMENTO:", fechamento);
 
-  renderJSON({
-    tab: CONFIG.TAB_NAME,
-    filtro: {
-      inicio: inicio ? $("periodoInicio").value : null,
-      fim: fim ? $("periodoFim").value : null,
-    },
-    fechamento,
-    meta: {
-      linhas: filtered.rows.length,
-      colunas: filtered.header.length,
-    },
-  });
+  renderFechamentoText(fechamento);
+  renderKPICards(fechamento);
+
+  renderTable(LAST_RAW.header, LAST_RAW.rows);
+
+  renderJSON({ fechamento });
 }
 
 // -----------------------
-// Bind UI
+// Init
 // -----------------------
 document.addEventListener("DOMContentLoaded", () => {
-  hideMesesArea();
+  fillUnidadeOptions();
 
   const btnCarregar = $("btnCarregar");
   if (btnCarregar) btnCarregar.addEventListener("click", carregarDados);
 
   const btnAplicar = $("btnAplicar");
-  if (btnAplicar) btnAplicar.addEventListener("click", aplicarFiltroPeriodo);
+  if (btnAplicar) btnAplicar.addEventListener("click", aplicar);
 
-  const pi = $("periodoInicio");
-  const pf = $("periodoFim");
-  if (pi) pi.addEventListener("change", () => LAST_RAW && aplicarFiltroPeriodo());
-  if (pf) pf.addEventListener("change", () => LAST_RAW && aplicarFiltroPeriodo());
+  const selMes = $("mesBase");
+  if (selMes) selMes.addEventListener("change", aplicar);
 
-  setStatus("Pronto.", "info");
+  const selUnidade = $("unidade");
+  if (selUnidade) selUnidade.addEventListener("change", carregarDados);
+
+  setStatus("Pronto. Clique em Carregar.", "info");
 });
 
-// Expor opcional
-window.KPIsGT = { carregarDados, aplicarFiltroPeriodo };
+// Expor (opcional)
+window.KPIsGT = { carregarDados, aplicar };
