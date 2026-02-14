@@ -1,39 +1,51 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 
-  <head>
+<head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard – Gestão da Escola</title>
   <link rel="stylesheet" href="styles.css?v=20260211" />
 </head>
 
-  <body>
-    <div class="container">
+<body>
+  <div class="container">
+
     <h1>Dashboard – Gestão da Escola</h1>
+
+    <!-- STATUS -->
     <div id="status" class="status">Inicializando...</div>
 
-      <input id="periodoInicio" type="date">
-      <input id="periodoFim" type="date">
-      <button id="btnAplicar">Aplicar</button>
-
-      
+    <!-- FILTRO PERÍODO -->
     <div class="card filtros">
       <label>Período – Início</label>
       <input type="date" id="dtInicio" />
+
+      <label>Período – Fim</label>
+      <input type="date" id="dtFim" />
+
       <label>Unidade</label>
       <select id="unidade"></select>
+
       <button id="btnAplicar">Aplicar</button>
     </div>
 
+    <!-- AÇÕES -->
     <div class="tabs">
       <button id="btnCarregar">Carregar</button>
-      <div id="status"></div>
-      <div id="meses"></div>
-      <div id="preview"></div>
-      <pre id="json"></pre>
+    </div>
 
-  <script src="./app.js"></script>
+    <!-- RESULTADOS -->
+    <div id="meses"></div>
+    <div id="preview"></div>
+    <pre id="json"></pre>
+
+    <!-- FECHAMENTO (teste visual) -->
+    <pre id="fechamento"></pre>
+
+  </div>
+
+  <script src="./app.js?v=20260214"></script>
 
 </body>
 </html>
