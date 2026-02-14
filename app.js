@@ -139,13 +139,185 @@ function tableToMatrix(table) {
   return { header, rows };
 }
 
-function rowsToObjects(header, rows) {
-  return rows.map((row) => {
-    const obj = {};
-    header.forEach((h, i) => (obj[h] = row[i] ?? ""));
-    return obj;
-  });
+// ========= MOTOR FECHAMENTO (M-1/M-2/M-3 do ano corrente + M-12) =========
+
+function parseMonthKeyFromHeader(label) {
+  // "janeiro/23" -> "2023-01"
+  const v = safeText(label).trim().toLowerCase();
+  const m = v.match(/^([a-zçãáâàéêíóôõúûü]{3,12})\/(\d{2}|\d{4})$/);
+  if (!m) return null;
+
+  const nome = m[1];
+  let ano = m[2];
+  if (ano.length === 2) ano = "20" + ano;
+
+  const map = {
+    janeiro: 1, fevereiro: 2, "março": 3, marco: 3,
+    abril: 4, maio: 5, junho: 6, julho: 7,
+    agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12
+  };
+
+  const mes = map[nome];
+  if (!mes) return null;
+
+  const mm = String(mes).padStart(2, "0");
+  return `${ano}-${mm}`;
 }
+
+function monthKeyToDate(monthKey) {
+  // "2025-12" -> Date(2025, 11, 1)
+  const [y, m] = monthKey.split("-").map(Number);
+  if (!y || !m) return null;
+  return new Date(y, m - 1, 1);
+}
+
+function addMonths(monthKey, delta) {
+  const dt = monthKeyToDate(monthKey);
+  if (!dt) return null;
+  dt.setMonth(dt.getMonth() + delta);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+function getYear(monthKey) {
+  return Number(monthKey.split("-")[0]);
+}
+
+function toNumberSmart(v) {
+  // converte "R$ 337.232,12" / "16,07" / "1.616" / "12,44%" etc
+  let s = safeText(v).trim();
+  if (!s) return null;
+
+  // remove moeda e espaços
+  s = s.replaceAll("R$", "").replaceAll(/\s+/g, "");
+
+  // percentual
+  const isPct = s.includes("%");
+  s = s.replaceAll("%", "");
+
+  // se tem "." e "," no padrão BR: "." milhar, "," decimal
+  // remove "." e troca "," por "."
+  s = s.replaceAll(".", "").replaceAll(",", ".");
+
+  const n = Number(s);
+  if (Number.isNaN(n)) return null;
+
+  return n; // mantenha como número puro; % você trata na renderização se quiser
+}
+
+function matrixToSeriesByMonth(header, rows) {
+  // header: ["Indicador", "janeiro/23", "fevereiro/23", ...]
+  // rows: [ ["Faturamento (R$)", "337.232,12", ...], ... ]
+  // retorna: { "2025-12": { "Faturamento (R$)": 337232.12, ... }, ... }
+
+  // 1) mapear colunas de mês
+  const monthCols = []; // [{ idx, key, label }]
+  for (let i = 0; i < header.length; i++) {
+    const key = parseMonthKeyFromHeader(header[i]);
+    if (key) monthCols.push({ idx: i, key, label: header[i] });
+  }
+
+  // 2) iniciar série vazia
+  const series = {};
+  monthCols.forEach(c => { series[c.key] = {}; });
+
+  // 3) preencher por indicador
+  rows.forEach(r => {
+    const indicador = safeText(r[0]).trim();
+    if (!indicador) return;
+
+    monthCols.forEach(c => {
+      const raw = r[c.idx];
+      const num = toNumberSmart(raw);
+      // guarda número se conseguir, senão guarda texto original
+      series[c.key][indicador] = (num !== null ? num : safeText(raw).trim());
+    });
+  });
+
+  return { series, monthCols };
+}
+
+function pickCurrentMonthKey(series) {
+  // último mês com pelo menos algum valor numérico preenchido
+  const keys = Object.keys(series).sort(); // YYYY-MM ordena lexicograficamente ok
+  for (let i = keys.length - 1; i >= 0; i--) {
+    const k = keys[i];
+    const obj = series[k];
+    if (!obj) continue;
+    const hasSomething = Object.values(obj).some(v => v !== "" && v !== null && v !== undefined);
+    if (hasSomething) return k;
+  }
+  return keys[keys.length - 1] || null;
+}
+
+// =======Motor FECHAMENTO  ....
+
+function buildFechamento(series, monthKeyCurrent = null) {
+  const mesAtual = monthKeyCurrent || pickCurrentMonthKey(series);
+  if (!mesAtual) throw new Error("Não consegui determinar o mês atual.");
+
+  const ano = getYear(mesAtual);
+
+  const m1 = addMonths(mesAtual, -1);
+  const m2 = addMonths(mesAtual, -2);
+  const m3 = addMonths(mesAtual, -3);
+
+  // últimos 3 meses do ano corrente (só mantém se estiver no mesmo ano)
+  const ultimos3AnoCorrente = [m1, m2, m3].filter(k => k && getYear(k) === ano && series[k]);
+
+  // mesmo mês do ano anterior
+  const mesAnoAnterior = addMonths(mesAtual, -12);
+  const anoAnteriorExiste = mesAnoAnterior && series[mesAnoAnterior] ? mesAnoAnterior : null;
+
+  // conjunto de indicadores (união)
+  const indicadores = new Set();
+  Object.keys(series[mesAtual] || {}).forEach(k => indicadores.add(k));
+  if (m1 && series[m1]) Object.keys(series[m1]).forEach(k => indicadores.add(k));
+  if (anoAnteriorExiste) Object.keys(series[anoAnteriorExiste]).forEach(k => indicadores.add(k));
+
+  // variações por indicador
+  const variacoes = {};
+  indicadores.forEach(ind => {
+    const atual = series[mesAtual]?.[ind] ?? null;
+    const ant = (m1 && series[m1]) ? (series[m1][ind] ?? null) : null;
+    const aa = anoAnteriorExiste ? (series[anoAnteriorExiste][ind] ?? null) : null;
+
+    const isNumA = typeof atual === "number";
+    const isNumB = typeof ant === "number";
+    const isNumC = typeof aa === "number";
+
+    variacoes[ind] = {
+      atual,
+      mesAnterior: ant,
+      anoAnterior: aa,
+      deltaMesAnterior: (isNumA && isNumB) ? (atual - ant) : null,
+      deltaAnoAnterior: (isNumA && isNumC) ? (atual - aa) : null,
+      // percentuais (opcional)
+      pctMesAnterior: (isNumA && isNumB && ant !== 0) ? ((atual - ant) / ant) : null,
+      pctAnoAnterior: (isNumA && isNumC && aa !== 0) ? ((atual - aa) / aa) : null,
+    };
+  });
+
+  return {
+    mesAtual,
+    ultimos3AnoCorrente,   // [M-1, M-2, M-3] dentro do mesmo ano
+    mesAnoAnterior: anoAnteriorExiste,
+    variacoes
+  };
+}
+
+const { header, rows } = tableToMatrix(table);
+
+// Converte tabela para série por mês
+const { series } = matrixToSeriesByMonth(header, rows);
+
+// Monta pacote de fechamento
+const fechamento = buildFechamento(series);
+
+// Apenas para teste agora:
+console.log("FECHAMENTO:", fechamento);
+
 
 // -----------------------
 // Render
