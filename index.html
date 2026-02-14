@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head>
+
+  <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard – Gestão da Escola</title>
   <link rel="stylesheet" href="styles.css?v=20260211" />
 </head>
-<body>
-  <div class="container">
+
+  <body>
+    <div class="container">
     <h1>Dashboard – Gestão da Escola</h1>
     <div id="status" class="status">Inicializando...</div>
 
@@ -20,12 +22,13 @@
     </div>
 
     <div class="tabs">
-      <button class="tab active" data-tab="fechamento">Fechamento – 3 Unidades</button>
-    </div>
+      <button id="btnCarregar">Carregar</button>
+      <div id="status"></div>
+      <div id="meses"></div>
+      <div id="preview"></div>
+      <pre id="json"></pre>
 
-    <div id="fechamento" class="tab-content active"></div>
-  </div>
+  <script src="./app.js"></script>
 
-  <script src="app.js?v=20260211"></script>
 </body>
 </html>
