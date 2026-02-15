@@ -1,4 +1,3 @@
-// ================= CONFIG =================
 const DATA_SHEET_ID = "1d4G--uvR-fjdn4gP8HM7r69SCHG_6bZNBpe_97Zx3Go";
 
 const TABS = {
@@ -9,7 +8,6 @@ const TABS = {
 
 const DEFAULT_UNIT_KEY = "CAMACARI";
 
-// ================= MATCH (Coluna A) =================
 function norm(s) {
   return String(s ?? "")
     .trim()
@@ -25,7 +23,6 @@ function labelHas(label, keys) {
 const KPI_MATCH = {
   ATIVOS_FINAL: ["ALUNOS ATIVOS T", "ALUNOS ATIVOS P", "ATIVOS"],
   VENDAS_MATRICULAS: ["MATRICULAS REALIZADAS"],
-  CADASTROS: ["CADASTROS"],
   FATURAMENTO: ["FATURAMENTO T (R$)", "FATURAMENTO P (R$)", "FATURAMENTO"],
   CUSTO_OPERACIONAL: ["CUSTO OPERACIONAL R$"],
   LUCRO_OPERACIONAL: ["LUCRO OPERACIONAL R$"],
@@ -36,14 +33,13 @@ const KPI_MATCH = {
   RESULTADO_LIQUIDO_TOTAL: ["RESULTADO LIQUIDO TOTAL R$"],
 };
 
-// ================= STATE =================
-let currentRows = [];           // linhas (dados)
-let colLabels = [];             // labels das colunas (GViz cols)
-let headerMonths = [];          // [{idx, label, key}]
+let currentRows = [];
+let colLabels = [];
+let colIds = [];
+let headerMonths = []; // [{idx,label,key}]
 let selectedMonthIdx = null;
 let selectedMonthLabel = "";
 
-// ================= DOM =================
 const $ = (id) => document.getElementById(id);
 
 const elStatus = $("status");
@@ -56,15 +52,12 @@ const btnApply = $("btnApply");
 const btnExpand = $("btnExpand");
 const tblInfo = $("tblInfo");
 const hintBox = $("hintBox");
-
 const metaUnit = $("metaUnit");
 const metaPeriod = $("metaPeriod");
 const metaBaseMonth = $("metaBaseMonth");
-
 const WRAP = $("tableWrap");
 const TABLE = $("kpiTable");
 
-// KPI targets
 const KPIS = {
   faturamento: $("kpi_faturamento"),
   custo: $("kpi_custo"),
@@ -100,7 +93,6 @@ const KPIS = {
   ativos_final_yoy: $("kpi_ativos_final_yoy"),
 };
 
-// ================= INIT =================
 document.addEventListener("DOMContentLoaded", () => setupUI());
 
 function setupUI() {
@@ -110,7 +102,6 @@ function setupUI() {
   ).join("");
   elUnit.value = DEFAULT_UNIT_KEY;
 
-  // padrão: ano atual inteiro
   const now = new Date();
   const start = new Date(now.getFullYear(), 0, 1);
   const end = new Date(now.getFullYear(), 11, 31);
@@ -121,8 +112,8 @@ function setupUI() {
   btnApply.addEventListener("click", () => apply());
   btnExpand.addEventListener("click", () => WRAP.classList.toggle("expanded"));
 
-  setStatus("Pronto. Carregando dados…");
-  hintBox.textContent = "Detectando meses pelo cabeçalho (labels das colunas)…";
+  setStatus("Pronto. Carregando…");
+  hintBox.textContent = "DEBUG: aguardando carregamento…";
   loadData();
 }
 
@@ -133,12 +124,13 @@ function toISODate(d){
 }
 function setStatus(msg){ elStatus.textContent = msg; }
 
-// ================= GVIZ FETCH =================
-function sheetUrl(tabName){
+// ============== GVIZ URL (auto headers) ==============
+function sheetUrl(tabName, headersVal){
   const base = `https://docs.google.com/spreadsheets/d/${DATA_SHEET_ID}/gviz/tq?`;
   const tq = encodeURIComponent("select *");
   const sheet = encodeURIComponent(tabName);
-  return `${base}tqx=out:json&tq=${tq}&sheet=${sheet}`;
+  // ✅ força headers, mas vamos testar 1 e 0 automaticamente
+  return `${base}tqx=out:json&headers=${headersVal}&tq=${tq}&sheet=${sheet}`;
 }
 function parseGviz(text){
   const start = text.indexOf("{");
@@ -153,28 +145,39 @@ async function loadData(){
   setStatus(`Carregando: ${tabName}…`);
 
   try{
-    const res = await fetch(sheetUrl(tabName), { cache:"no-store" });
-    const txt = await res.text();
-    const data = parseGviz(txt);
+    // tenta headers=1 primeiro; se vier “morto”, tenta 0
+    const d1 = await fetchAndParse(tabName, 1);
+    const ok1 = extractTable(d1);
 
-    if(data.status !== "ok"){
-      throw new Error(data.errors?.[0]?.detailed_message || "GViz status != ok");
+    if(!ok1.monthsFound){
+      const d0 = await fetchAndParse(tabName, 0);
+      const ok0 = extractTable(d0);
+      if(ok0.monthsFound){
+        hintBox.textContent = ok0.debug + " | (usando headers=0)";
+      } else {
+        hintBox.textContent = ok0.debug + " | (falhou headers=1 e headers=0)";
+      }
+    } else {
+      hintBox.textContent = ok1.debug + " | (usando headers=1)";
     }
-
-    colLabels = (data.table.cols || []).map(c => (c?.label ?? "").trim());
-    currentRows = gvizTableToRows(data.table);
-
-    detectHeaderMonthsFromCols(); // ✅ agora vem do header real
 
     setStatus(`Dados carregados. (${tabName})`);
     apply();
   }catch(err){
     console.error(err);
     setStatus("Erro ao carregar dados.");
-    hintBox.textContent =
-      "Falha ao ler a planilha via GViz. Verifique compartilhamento e nomes das abas. " +
-      "Detalhe: " + (err?.message || err);
+    hintBox.textContent = "Erro GViz: " + (err?.message || err);
   }
+}
+
+async function fetchAndParse(tabName, headersVal){
+  const res = await fetch(sheetUrl(tabName, headersVal), { cache:"no-store" });
+  const txt = await res.text();
+  const data = parseGviz(txt);
+  if(data.status !== "ok"){
+    throw new Error(data.errors?.[0]?.detailed_message || "GViz status != ok");
+  }
+  return data;
 }
 
 function gvizTableToRows(table){
@@ -192,7 +195,7 @@ function gvizTableToRows(table){
   return out;
 }
 
-// ================= MONTH DETECTION (COL LABELS) =================
+// ======== MONTH PARSER ========
 const MONTH_MAP = {
   JAN: "01", JANEIRO:"01",
   FEV: "02", FEVEREIRO:"02",
@@ -211,63 +214,75 @@ const MONTH_MAP = {
 function monthLabelToKeyFlexible(raw){
   const s0 = norm(raw);
   if(!s0) return null;
-
   const s = s0.replace(/[.\-]/g, "/").replace(/\s+/g, "/");
 
-  // ano (2 ou 4)
   const yMatch = s.match(/(\d{4}|\d{2})/);
   if(!yMatch) return null;
   let yyyy = yMatch[1];
   if(yyyy.length === 2) yyyy = "20" + yyyy;
 
-  // mês
   let mm = null;
   for(const k of Object.keys(MONTH_MAP)){
-    if(s.includes(k)){
-      mm = MONTH_MAP[k];
-      break;
-    }
+    if(s.includes(k)){ mm = MONTH_MAP[k]; break; }
   }
   if(!mm) return null;
-
   return `${yyyy}-${mm}`;
 }
+function isMonthLabel(x){ return monthLabelToKeyFlexible(x) != null; }
 
-function detectHeaderMonthsFromCols(){
-  headerMonths = [];
+// ======== extract: tenta cols.label, cols.id, rows[0] ========
+function extractTable(data){
+  const table = data.table;
+  colLabels = (table.cols || []).map(c => (c?.label ?? "").trim());
+  colIds    = (table.cols || []).map(c => (c?.id ?? "").trim());
+  currentRows = gvizTableToRows(table);
 
-  for(let c=1;c<colLabels.length;c++){
-    const label = colLabels[c];
-    const key = monthLabelToKeyFlexible(label);
-    if(key){
-      headerMonths.push({ idx:c, label, key });
+  // DEBUG: amostras
+  const sampleLabels = colLabels.slice(0, 8).map(x => x || "∅").join(" | ");
+  const sampleIds = colIds.slice(0, 8).map(x => x || "∅").join(" | ");
+  const row0 = currentRows[0] ? currentRows[0].slice(0, 8).map(v => String(v ?? "∅")).join(" | ") : "∅";
+  const debug =
+    `DEBUG cols=${colLabels.length} rows=${currentRows.length} | ` +
+    `labels[0..]=${sampleLabels} | ids[0..]=${sampleIds} | row0[0..]=${row0}`;
+
+  // 1) meses em labels
+  let months = buildMonthsFromArray(colLabels);
+  // 2) se não, meses em ids
+  if(months.length < 3) months = buildMonthsFromArray(colIds);
+
+  // 3) se ainda não, tenta primeira linha dos dados como cabeçalho
+  if(months.length < 3 && currentRows.length){
+    const head = currentRows[0].map(v => String(v ?? "").trim());
+    const monthsFromRow = buildMonthsFromArray(head);
+    if(monthsFromRow.length >= 3){
+      colLabels = head;
+      months = monthsFromRow;
+      currentRows = currentRows.slice(1); // remove header fake
     }
   }
 
-  if(!headerMonths.length){
-    hintBox.textContent =
-      "⚠️ Não detectei meses nos labels das colunas. " +
-      "Confirme se os cabeçalhos são tipo 'jan./25', 'fev./25' etc (como no print).";
-  } else {
-    const first = headerMonths[0].label;
-    const last = headerMonths[headerMonths.length-1].label;
-    hintBox.textContent =
-      `✅ Meses detectados no cabeçalho: ${headerMonths.length}. ` +
-      `Primeiro: ${first} • Último: ${last}`;
+  headerMonths = months;
+  return { monthsFound: headerMonths.length >= 3, debug };
+}
+
+function buildMonthsFromArray(arr){
+  const out = [];
+  for(let i=1;i<arr.length;i++){
+    const label = arr[i];
+    const key = monthLabelToKeyFlexible(label);
+    if(key) out.push({ idx:i, label, key });
   }
+  return out;
 }
 
 function findMonthColByKey(key){
-  if(!key) return null;
   const m = headerMonths.find(x => x.key === key);
   return m ? m.idx : null;
 }
 
-// ================= KPI LOOKUPS =================
+// ======== KPIs ========
 function findRowByKpiKey(kpiKey){
   const keys = KPI_MATCH[kpiKey] || [];
-  if(!keys.length) return null;
-
   for(let r=0;r<currentRows.length;r++){
     const label = currentRows[r]?.[0];
     if(labelHas(label, keys)) return currentRows[r];
@@ -278,8 +293,8 @@ function findRowByKpiKey(kpiKey){
 function getCellNumber(row, colIdx){
   if(!row || colIdx == null) return null;
   const v = row[colIdx];
-  if (v == null || v === "") return null;
-  if (typeof v === "number") return v;
+  if(v == null || v === "") return null;
+  if(typeof v === "number") return v;
   const s = String(v).trim();
   const cleaned = s.replace(/\./g,"").replace(",",".").replace(/[^\d\.\-]/g,"");
   const n = Number(cleaned);
@@ -288,32 +303,20 @@ function getCellNumber(row, colIdx){
 
 function fmtByKey(kpiKey, n){
   if(n == null) return "—";
-
-  const isPct =
-    kpiKey.includes("MARGEM") ||
-    kpiKey.includes("INADIMPLENCIA") ||
-    kpiKey.includes("EVASAO");
-
-  const isMoney =
-    kpiKey.includes("FATURAMENTO") ||
-    kpiKey.includes("CUSTO") ||
-    kpiKey.includes("LUCRO") ||
-    kpiKey.includes("RESULTADO");
-
+  const isPct = kpiKey.includes("MARGEM") || kpiKey.includes("INADIMPLENCIA") || kpiKey.includes("EVASAO");
+  const isMoney = kpiKey.includes("FATURAMENTO") || kpiKey.includes("CUSTO") || kpiKey.includes("LUCRO") || kpiKey.includes("RESULTADO");
   if(isPct){
     const val = (n <= 1.5) ? (n*100) : n;
     return `${val.toFixed(2).replace(".",",")}%`;
   }
-  if(isMoney){
-    return n.toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
-  }
+  if(isMoney) return n.toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
   const isInt = Math.abs(n - Math.round(n)) < 1e-9;
   return isInt ? String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ".") : n.toLocaleString("pt-BR");
 }
 
-function deltaClass(delta, preferLowerIsBetter=false){
+function deltaClass(delta, lowerIsBetter=false){
   if(delta == null) return "";
-  if(preferLowerIsBetter){
+  if(lowerIsBetter){
     if(delta < 0) return "good";
     if(delta > 0) return "bad";
     return "";
@@ -322,33 +325,33 @@ function deltaClass(delta, preferLowerIsBetter=false){
   if(delta < 0) return "bad";
   return "";
 }
-
 function fmtDelta(base, compare, kpiKey){
   if(base == null || compare == null) return { text:"—", cls:"" };
   const delta = base - compare;
   const lowerIsBetter = (kpiKey === "INADIMPLENCIA" || kpiKey === "EVASAO");
   const cls = deltaClass(delta, lowerIsBetter);
-
-  if (compare !== 0) {
-    const pct = (delta / compare) * 100;
-    const s = `${pct >= 0 ? "+" : ""}${pct.toFixed(2).replace(".",",")}%`;
-    return { text:s, cls };
+  if(compare !== 0){
+    const pct = (delta/compare)*100;
+    return { text: `${pct>=0?"+":""}${pct.toFixed(2).replace(".",",")}%`, cls };
   }
-  return { text: `${delta >= 0 ? "+" : ""}${delta.toFixed(2).replace(".",",")}`, cls };
+  return { text: `${delta>=0?"+":""}${delta.toFixed(2).replace(".",",")}`, cls };
 }
 
-// ================= APPLY / RENDER =================
 function apply(){
-  if(!currentRows.length){
-    setStatus("Sem dados.");
-    return;
-  }
-
   const unitKey = elUnit.value;
   const tabName = TABS[unitKey];
 
   metaUnit.textContent = tabName.replace("Números ","");
   metaPeriod.textContent = `${brDate(elStart.value)} → ${brDate(elEnd.value)}`;
+
+  if(headerMonths.length < 3){
+    metaBaseMonth.textContent = "—";
+    tblInfo.textContent = "Sem meses detectados";
+    // zera cards
+    Object.values(KPIS).forEach(el => { if(el && el.tagName) el.textContent = "—"; });
+    TABLE.innerHTML = `<tr><td class="muted">Sem meses detectados. Veja o DEBUG acima.</td></tr>`;
+    return;
+  }
 
   const baseDate = new Date(elEnd.value + "T00:00:00");
   const prevDate = new Date(baseDate.getFullYear(), baseDate.getMonth()-1, 1);
@@ -359,57 +362,40 @@ function apply(){
   const yoyKey  = monthKey(yoyDate);
 
   selectedMonthIdx = findMonthColByKey(baseKey);
-
-  // fallback: último mês disponível do cabeçalho
-  if(selectedMonthIdx == null && headerMonths.length){
-    selectedMonthIdx = headerMonths[headerMonths.length-1].idx;
-  }
+  if(selectedMonthIdx == null) selectedMonthIdx = headerMonths[headerMonths.length-1].idx;
 
   const prevIdx = findMonthColByKey(prevKey);
   const yoyIdx  = findMonthColByKey(yoyKey);
 
-  selectedMonthLabel = (selectedMonthIdx != null ? colLabels[selectedMonthIdx] : "") || "";
-  metaBaseMonth.textContent = selectedMonthLabel ? String(selectedMonthLabel) : "—";
+  selectedMonthLabel = (colLabels[selectedMonthIdx] || headerMonths.find(m=>m.idx===selectedMonthIdx)?.label || "");
+  metaBaseMonth.textContent = selectedMonthLabel || "—";
 
-  renderCard({ valueEl: KPIS.faturamento, momEl: KPIS.faturamento_mom, yoyEl: KPIS.faturamento_yoy, kpiKey: "FATURAMENTO", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
-  renderCard({ valueEl: KPIS.custo, momEl: KPIS.custo_mom, yoyEl: KPIS.custo_yoy, kpiKey: "CUSTO_OPERACIONAL", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.faturamento, momEl: KPIS.faturamento_mom, yoyEl: KPIS.faturamento_yoy, kpiKey:"FATURAMENTO", baseIdx:selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.custo, momEl: KPIS.custo_mom, yoyEl: KPIS.custo_yoy, kpiKey:"CUSTO_OPERACIONAL", baseIdx:selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.resultado, momEl: KPIS.resultado_mom, yoyEl: KPIS.resultado_yoy, kpiKey:"LUCRO_OPERACIONAL", baseIdx:selectedMonthIdx, prevIdx, yoyIdx, fallbackKey:"RESULTADO_LIQUIDO_TOTAL" });
 
-  renderCard({
-    valueEl: KPIS.resultado,
-    momEl: KPIS.resultado_mom,
-    yoyEl: KPIS.resultado_yoy,
-    kpiKey: "LUCRO_OPERACIONAL",
-    baseIdx: selectedMonthIdx,
-    prevIdx,
-    yoyIdx,
-    fallbackKey: "RESULTADO_LIQUIDO_TOTAL"
-  });
+  renderCard({ valueEl: KPIS.ativos, momEl: KPIS.ativos_mom, yoyEl: KPIS.ativos_yoy, kpiKey:"ATIVOS_FINAL", baseIdx:selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.matriculas, momEl: KPIS.matriculas_mom, yoyEl: KPIS.matriculas_yoy, kpiKey:"VENDAS_MATRICULAS", baseIdx:selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.recebidas, momEl: KPIS.recebidas_mom, yoyEl: KPIS.recebidas_yoy, kpiKey:"PARCELAS_RECEBIDAS", baseIdx:selectedMonthIdx, prevIdx, yoyIdx });
 
-  renderCard({ valueEl: KPIS.ativos, momEl: KPIS.ativos_mom, yoyEl: KPIS.ativos_yoy, kpiKey: "ATIVOS_FINAL", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
-  renderCard({ valueEl: KPIS.matriculas, momEl: KPIS.matriculas_mom, yoyEl: KPIS.matriculas_yoy, kpiKey: "VENDAS_MATRICULAS", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
-  renderCard({ valueEl: KPIS.recebidas, momEl: KPIS.recebidas_mom, yoyEl: KPIS.recebidas_yoy, kpiKey: "PARCELAS_RECEBIDAS", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
-  renderCard({ valueEl: KPIS.inad, momEl: KPIS.inad_mom, yoyEl: KPIS.inad_yoy, kpiKey: "INADIMPLENCIA", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
-  renderCard({ valueEl: KPIS.evasao, momEl: KPIS.evasao_mom, yoyEl: KPIS.evasao_yoy, kpiKey: "EVASAO", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
-  renderCard({ valueEl: KPIS.margem, momEl: KPIS.margem_mom, yoyEl: KPIS.margem_yoy, kpiKey: "MARGEM", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.inad, momEl: KPIS.inad_mom, yoyEl: KPIS.inad_yoy, kpiKey:"INADIMPLENCIA", baseIdx:selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.evasao, momEl: KPIS.evasao_mom, yoyEl: KPIS.evasao_yoy, kpiKey:"EVASAO", baseIdx:selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.margem, momEl: KPIS.margem_mom, yoyEl: KPIS.margem_yoy, kpiKey:"MARGEM", baseIdx:selectedMonthIdx, prevIdx, yoyIdx });
 
-  renderCard({ valueEl: KPIS.ativosFinal, momEl: KPIS.ativos_final_mom, yoyEl: KPIS.ativos_final_yoy, kpiKey: "ATIVOS_FINAL", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.ativosFinal, momEl: KPIS.ativos_final_mom, yoyEl: KPIS.ativos_final_yoy, kpiKey:"ATIVOS_FINAL", baseIdx:selectedMonthIdx, prevIdx, yoyIdx });
 
   renderTable();
 
-  const baseTxt = selectedMonthLabel ? `Base: ${selectedMonthLabel}` : "Base: —";
-  const headerTxt = headerMonths.length ? `Meses: ${headerMonths.length}` : "Meses: 0";
-  tblInfo.textContent = `${baseTxt} • ${headerTxt}`;
+  tblInfo.textContent = `Base: ${selectedMonthLabel} • Meses: ${headerMonths.length}`;
 }
 
 function renderCard({ valueEl, momEl, yoyEl, kpiKey, baseIdx, prevIdx, yoyIdx, fallbackKey=null }){
   let row = findRowByKpiKey(kpiKey);
   let usedKey = kpiKey;
-
   if(!row && fallbackKey){
     row = findRowByKpiKey(fallbackKey);
     usedKey = fallbackKey;
   }
-
   const base = getCellNumber(row, baseIdx);
   const prev = getCellNumber(row, prevIdx);
   const yoy = getCellNumber(row, yoyIdx);
@@ -417,23 +403,16 @@ function renderCard({ valueEl, momEl, yoyEl, kpiKey, baseIdx, prevIdx, yoyIdx, f
   valueEl.textContent = fmtByKey(usedKey, base);
 
   const d1 = fmtDelta(base, prev, usedKey);
-  momEl.textContent = d1.text === "—" ? "vs mês anterior —" : `vs mês anterior ${d1.text}`;
+  momEl.textContent = d1.text==="—" ? "vs mês anterior —" : `vs mês anterior ${d1.text}`;
   momEl.className = `kpiDelta ${d1.cls}`;
 
   const d2 = fmtDelta(base, yoy, usedKey);
-  yoyEl.textContent = d2.text === "—" ? "vs ano anterior —" : `vs ano anterior ${d2.text}`;
+  yoyEl.textContent = d2.text==="—" ? "vs ano anterior —" : `vs ano anterior ${d2.text}`;
   yoyEl.className = `kpiDelta ${d2.cls}`;
 }
 
-// ================= TABLE =================
 function renderTable(){
   TABLE.innerHTML = "";
-
-  if(!headerMonths.length){
-    TABLE.innerHTML = `<tr><td class="muted">Não identifiquei meses no cabeçalho.</td></tr>`;
-    return;
-  }
-
   const mode = elMode.value;
   const cols = buildVisibleColumns(mode);
 
@@ -448,12 +427,9 @@ function renderTable(){
   TABLE.appendChild(thead);
 
   const tbody = document.createElement("tbody");
-
   for(let r=0;r<currentRows.length;r++){
     const row = currentRows[r];
-    if(!row) continue;
-
-    const label = String(row[0] ?? "").trim();
+    const label = String(row?.[0] ?? "").trim();
     if(!label) continue;
 
     const tr = document.createElement("tr");
@@ -462,19 +438,16 @@ function renderTable(){
     cols.forEach((c, i) => {
       const td = document.createElement("td");
       const v = row[c.idx];
-      td.textContent = (i===0) ? label : (v == null ? "" : String(v));
+      td.textContent = i===0 ? label : (v==null ? "" : String(v));
       tr.appendChild(td);
     });
-
     tbody.appendChild(tr);
   }
-
   TABLE.appendChild(tbody);
 }
 
 function buildVisibleColumns(mode){
   const cols = [{ idx:0, label:"Indicador" }];
-
   if(mode === "full"){
     headerMonths.forEach(m => cols.push({ idx:m.idx, label:m.label }));
     return cols;
@@ -493,7 +466,6 @@ function buildVisibleColumns(mode){
       .forEach(m => cols.push({ idx:m.idx, label:m.label }));
     return cols;
   }
-
   const a = Math.min(aPos, bPos);
   const b = Math.max(aPos, bPos);
   for(let i=a;i<=b;i++){
@@ -509,7 +481,6 @@ function isGroupRow(label, row){
   return (looksUpper && !hasNumbers) || L.includes("PLANILHA DE INDICADORES");
 }
 
-// ================= HELPERS =================
 function brDate(iso){
   if(!iso) return "—";
   const [y,m,d] = iso.split("-");
