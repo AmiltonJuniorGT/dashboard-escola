@@ -252,15 +252,21 @@ function fillUnidadeOptions() {
   if (!sel) return;
 
   sel.innerHTML = "";
+
   CONFIG.UNIDADES.forEach(u => {
     const opt = document.createElement("option");
-    opt.value = u.tab;
+    opt.value = u.tab;      // nome da aba
     opt.textContent = u.label;
     sel.appendChild(opt);
   });
 
-  // default: Cajazeiras
-  sel.value = CONFIG.UNIDADES[0]?.tab || CONFIG.TAB_NAME;
+  // ✅ tenta recuperar última unidade usada
+  const saved = localStorage.getItem("kpisgt_unidade_tab");
+
+  // ✅ se não tiver salvo, começa em Camaçari (se existir)
+  const camacariTab = (CONFIG.UNIDADES.find(u => u.label.toLowerCase().includes("camaçari")) || {}).tab;
+
+  sel.value = saved || camacariTab || CONFIG.UNIDADES[0]?.tab || sel.value;
 }
 
 function fillMesBaseOptions(series) {
