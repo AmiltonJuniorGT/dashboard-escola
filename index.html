@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard – Gestão da Escola</title>
-  <link rel="stylesheet" href="styles.css?v=20260214-4" />
+  <link rel="stylesheet" href="styles.css?v=20260214-5" />
 </head>
 
 <body>
@@ -48,35 +48,17 @@
       </div>
     </div>
 
-    <!-- MAPEAMENTO -->
-    <div class="card">
-      <div class="mapHeader">
-        <div class="mapTitle">Mapeamento de Indicadores (Coluna A)</div>
-        <div class="mapHint">Selecione os indicadores para alimentar os cards. Salva por unidade/aba.</div>
-      </div>
-
-      <div class="grid mapGrid" id="mapWrap"></div>
-
-      <div class="mapActions">
-        <button id="btnSalvarMap">Salvar mapeamento</button>
-      </div>
-    </div>
-
-    <!-- RESUMO / FECHAMENTO -->
     <pre id="fechamento" class="fechamento"></pre>
 
-    <!-- CARDS -->
-    <div id="cardsKPI" class="cardsKPI"></div>
+    <div id="cardsKPI"></div>
 
-    <!-- TABELA -->
     <div id="tableWrap">
       <div id="preview"></div>
     </div>
 
-    <!-- JSON (oculto, mas útil para debug se precisar) -->
     <pre id="json" style="display:none"></pre>
   </div>
 
-  <script src="./app.js?v=20260214-4"></script>
+  <script src="./app.js?v=20260214-5"></script>
 </body>
 </html>
