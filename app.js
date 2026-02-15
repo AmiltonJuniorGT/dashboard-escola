@@ -1,10 +1,10 @@
 /**
  * KPIs GT — Mensal (GVIZ) — 3 abas (3 unidades)
- * - Período dinâmico (início/fim) para filtrar colunas do mês
- * - Mês base dos cards = mês do Período Fim
- * - Cards por blocos + Card Ritmo (mensal) com dias úteis
- * - Tabela navegável em caixa (scroll lateral/vertical), coluna A fixa, cabeçalho fixo
- * - Mapeamento por indicador (coluna A) salvo por unidade/aba
+ * Mantém a leitura “automática” (sem mapeamento manual):
+ * - detecta os indicadores na Coluna A por melhor correspondência (regex)
+ * - organiza os cards por blocos (Financeiro / Volume / Perdas / Ativos final / Ritmo)
+ * - período dinâmico (Início/Fim)
+ * - tabela em caixa com scroll lateral e destaques do mês-base e AA
  */
 
 const CONFIG = {
@@ -17,7 +17,7 @@ const CONFIG = {
 };
 
 // =======================
-// Seções de cards (ordem executiva)
+// ORDEM EXECUTIVA DOS CARDS
 // =======================
 const KPI_SECTIONS = [
   {
@@ -59,18 +59,74 @@ const KPI_SECTIONS = [
 ];
 
 // =======================
+// AUTO-DETECÇÃO DOS INDICADORES NA COLUNA A
+// (ajustável: se algum não bater, me diga o texto e eu adapto o regex)
+// =======================
+const KPI_MATCH = {
+  FATURAMENTO: [
+    /fatur/i,
+    /receita/i,
+    /total\s*receita/i,
+    /faturamento\s*total/i,
+  ],
+  CUSTOS: [
+    /\bcusto/i,
+    /desp/i,
+    /total\s*desp/i,
+  ],
+  VENDAS: [
+    /\bvenda/i,
+    /matr[ií]c/i,
+    /novas?\s*matr/i,
+  ],
+  META_VENDAS: [
+    /\bmeta/i,
+    /meta.*matr/i,
+    /meta.*venda/i,
+  ],
+  ATIVOS: [
+    /\bativos?\b/i,
+    /alunos?\s*ativos?/i,
+    /ativos?\s*in[ií]cio/i,
+  ],
+  ATIVOS_FINAL: [
+    /ativos?\s*final/i,
+    /ativos?\s*fim/i,
+  ],
+  PARCELAS_RECEBIDAS: [
+    /parcel/i,
+    /recebid/i,
+    /t[ií]tulos?\s*receb/i,
+  ],
+  INADIMPLENCIA: [
+    /inadimpl/i,
+    /atras/i,
+  ],
+  EVASAO: [
+    /evas/i,
+    /desist/i,
+    /cancel/i,
+  ],
+  FORMATURA: [
+    /format/i,
+    /conclus/i,
+  ],
+};
+
+// =======================
 // Grupos para tabela
 // =======================
 const GROUPS = [
+  { name: "FINANCEIRO", match: /(FATUR|RECEIT|INADIMPL|CUSTO|DESP|MARGEM|CAIXA|PAGAM|PARCEL)/i },
   { name: "COMERCIAL", match: /(MATR|META|CONVERS|LEADS|AGEND|CAPTA|VISIT|PROPOST|VENDA)/i },
-  { name: "ACADÊMICO", match: /(ATIV|EVAS|ALUNO|TURMA|FALT|RETEN|CARGA|AULA|FORMAT)/i },
-  { name: "FINANCEIRO", match: /(FATUR|RECEIT|BOLETO|INADIMPL|CUSTO|DESP|MARGEM|CAIXA|PAGAM|PARCEL)/i },
+  { name: "ACADÊMICO", match: /(ATIV|EVAS|ALUNO|TURMA|FALT|RETEN|AULA|FORMAT)/i },
   { name: "OPERACIONAL", match: /(PROF|SAL|RH|OCUP|CAPAC|ESTRUT|EQUIPE)/i },
+  { name: "OUTROS", match: /.*/ },
 ];
 
-let LAST_RAW = null;     // { header, rows }
-let LAST_SERIES = null;  // { "YYYY-MM": { indicador: valorNumberOuTexto } }
-let LAST_MONTH_COLS = null; // ["YYYY-MM", ...]
+let LAST_RAW = null;       // { header, rows }
+let LAST_SERIES = null;    // { "YYYY-MM": { indicador: valor } }
+let LAST_IND_MAP = null;   // { KEY: "Nome do indicador encontrado" }
 let LAST_FECHAMENTO = null;
 
 // =======================
@@ -78,6 +134,7 @@ let LAST_FECHAMENTO = null;
 // =======================
 function $(id){ return document.getElementById(id); }
 function safeText(v){ return (v ?? "").toString(); }
+function isNum(x){ return typeof x === "number" && !Number.isNaN(x); }
 
 function setStatus(msg, type="info"){
   const el = $("status");
@@ -96,8 +153,6 @@ function escapeHtml(str){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
-
-function isNum(x){ return typeof x === "number" && !Number.isNaN(x); }
 
 // =======================
 // Datas
@@ -118,7 +173,6 @@ function isoDateToMonthKey(iso){
   if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
   return iso.slice(0,7);
 }
-
 function parseMonthKey(monthKey){
   const [y,m] = monthKey.split("-").map(Number);
   return new Date(y, m-1, 1);
@@ -134,6 +188,10 @@ function formatMonthKeyBR(monthKey){
   const [y,m] = monthKey.split("-").map(Number);
   const map = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
   return `${map[m-1]}/${String(y).slice(2)}`;
+}
+
+function monthKeyBetween(mk, startMk, endMk){
+  return mk >= startMk && mk <= endMk;
 }
 
 // dias úteis (sem feriados por enquanto)
@@ -184,7 +242,6 @@ function normalizeMonthName(s){
     .replaceAll("ú","u")
     .replaceAll("ü","u");
 }
-
 function monthNameToNumber(nome){
   const map = {
     jan:1, janeiro:1,
@@ -202,7 +259,6 @@ function monthNameToNumber(nome){
   };
   return map[nome] || null;
 }
-
 function parseMonthKeyFromHeader(label){
   const v = safeText(label).trim().toLowerCase();
 
@@ -230,10 +286,6 @@ function parseMonthKeyFromHeader(label){
   return null;
 }
 
-function monthKeyBetween(mk, startMk, endMk){
-  return mk >= startMk && mk <= endMk;
-}
-
 // =======================
 // Conversão numérica BR
 // =======================
@@ -242,15 +294,11 @@ function toNumberSmart(v){
   if (!s) return null;
 
   s = s.replaceAll("R$","").replaceAll(/\s+/g,"");
-  const isPct = s.includes("%");
-  s = s.replaceAll("%","");
+  s = s.replaceAll("%",""); // se for %, guardamos o número "puro"
 
   s = s.replaceAll(".","").replaceAll(",",".");
   const n = Number(s);
   if (Number.isNaN(n)) return null;
-
-  // porcentagem: guardamos o valor numérico "puro"
-  // (renderização decide se coloca %)
   return n;
 }
 
@@ -267,7 +315,6 @@ function gvizUrl(sheetId, tabName){
   });
   return `${base}?${params.toString()}`;
 }
-
 async function fetchGvizTable(sheetId, tabName){
   const url = gvizUrl(sheetId, tabName);
   const resp = await fetch(url);
@@ -278,7 +325,6 @@ async function fetchGvizTable(sheetId, tabName){
   if (json.status !== "ok") throw new Error(json.errors?.[0]?.detailed_message || "Erro no GVIZ.");
   return json.table;
 }
-
 function tableToMatrix(table){
   const header = table.cols.map(c => safeText(c.label));
   const rows = table.rows.map(r => (r.c || []).map(cell => safeText(cell?.f ?? cell?.v ?? "")));
@@ -286,18 +332,17 @@ function tableToMatrix(table){
 }
 
 // =======================
-// Série por mês: { "YYYY-MM": { Indicador: valor } }
+// Série por mês
 // =======================
 function matrixToSeriesByMonth(header, rows){
-  const monthCols = []; // {idx, key}
+  const monthCols = [];
   for (let i=0;i<header.length;i++){
     const key = parseMonthKeyFromHeader(header[i]);
     if (key) monthCols.push({ idx:i, key });
   }
 
   const series = {};
-  const monthKeys = monthCols.map(c => c.key);
-  monthKeys.forEach(k => { series[k] = {}; });
+  monthCols.forEach(c => { series[c.key] = {}; });
 
   rows.forEach(r => {
     const indicador = safeText(r?.[0]).trim();
@@ -310,11 +355,11 @@ function matrixToSeriesByMonth(header, rows){
     });
   });
 
-  return { series, monthKeys };
+  return { series };
 }
 
 // =======================
-// Fechamento mensal (M-1/M-2/M-3 + AA)
+// Fechamento mensal
 // =======================
 function buildFechamento(series, mesBase){
   if (!mesBase || !series[mesBase]) throw new Error("Mês base inválido/fora da base.");
@@ -329,7 +374,6 @@ function buildFechamento(series, mesBase){
   const mesAnoAnterior = addMonths(mesBase, -12);
   const aa = (mesAnoAnterior && series[mesAnoAnterior]) ? mesAnoAnterior : null;
 
-  // variacoes por indicador (para usar em cards)
   const variacoes = {};
   const indicadores = new Set(Object.keys(series[mesBase] || {}));
 
@@ -345,6 +389,39 @@ function buildFechamento(series, mesBase){
   });
 
   return { mesAtual: mesBase, ultimos3AnoCorrente, mesAnoAnterior: aa, variacoes };
+}
+
+// =======================
+// Auto-lookup dos indicadores (coluna A)
+// =======================
+function buildIndicatorIndexFromRows(rows){
+  // lista de nomes reais (coluna A)
+  return rows
+    .map(r => safeText(r?.[0]).trim())
+    .filter(v => v && v.toLowerCase() !== "indicador");
+}
+
+function findBestIndicatorName(allNames, patterns){
+  // pega o primeiro que casar (ordem = prioridade)
+  for (const rx of patterns){
+    const found = allNames.find(n => rx.test(n));
+    if (found) return found;
+  }
+  return null;
+}
+
+function buildAutoIndicatorMap(allNames){
+  const out = {};
+  Object.keys(KPI_MATCH).forEach(key => {
+    out[key] = findBestIndicatorName(allNames, KPI_MATCH[key]);
+  });
+  return out;
+}
+
+function getMonthlyValue(series, monthKey, indicadorNome){
+  if (!series?.[monthKey] || !indicadorNome) return null;
+  const v = series[monthKey][indicadorNome];
+  return (v === undefined ? null : v);
 }
 
 // =======================
@@ -373,194 +450,23 @@ function trendMeta(delta, better){
   return { arrow: isUp ? "▲" : "▼", cls: good ? "good" : "bad", sign: delta>0 ? "+" : "" };
 }
 
-// =======================
-// Tabela — agrupamento
-// =======================
-function getGroupName(indicador){
-  const t = safeText(indicador);
-  for (const g of GROUPS){
-    if (g.match.test(t)) return g.name;
-  }
-  return "OUTROS";
-}
+function renderFechamentoText(tabName, startMk, endMk, fechamento){
+  const box = $("fechamento");
+  if (!box) return;
 
-function filterMatrixByMonthRange(raw, startMk, endMk){
-  const keepIdx = [];
+  const labelUnidade = (CONFIG.UNIDADES.find(u => u.tab === tabName)?.label) || tabName;
+  const ult3 = fechamento.ultimos3AnoCorrente.map(formatMonthKeyBR).join(" | ");
 
-  // sempre manter a coluna 0 (indicador)
-  keepIdx.push(0);
-
-  // manter colunas não-mês (exceto 0) e colunas de mês dentro do intervalo
-  for (let i=1;i<raw.header.length;i++){
-    const mk = parseMonthKeyFromHeader(raw.header[i]);
-    if (!mk){
-      keepIdx.push(i); // não é mês, mantém
-      continue;
-    }
-    if (monthKeyBetween(mk, startMk, endMk)) keepIdx.push(i);
-  }
-
-  const header = keepIdx.map(i => raw.header[i]);
-  const rows = raw.rows.map(r => keepIdx.map(i => r[i] ?? ""));
-  return { header, rows };
-}
-
-function renderTableGrouped(header, rows, fechamento){
-  const el = $("preview");
-  if (!el) return;
-
-  // achar índice do mês base e do AA na matriz atual
-  let idxMesBase = -1;
-  let idxAnoAnterior = -1;
-
-  for (let i=0;i<header.length;i++){
-    const mk = parseMonthKeyFromHeader(header[i]);
-    if (mk && mk === fechamento.mesAtual) idxMesBase = i;
-    if (mk && fechamento.mesAnoAnterior && mk === fechamento.mesAnoAnterior) idxAnoAnterior = i;
-  }
-
-  const buckets = {};
-  rows.forEach(r => {
-    const ind = r?.[0] ?? "";
-    const g = getGroupName(ind);
-    if (!buckets[g]) buckets[g] = [];
-    buckets[g].push(r);
-  });
-
-  const order = ["FINANCEIRO","COMERCIAL","ACADÊMICO","OPERACIONAL","OUTROS"];
-
-  let html = `<table><thead><tr>`;
-  header.forEach((h, idx) => {
-    const cls = `${idx===idxMesBase ? "col-mesbase" : ""}${idx===idxAnoAnterior ? " col-anoanterior" : ""}`.trim();
-    html += `<th class="${cls}">${escapeHtml(h)}</th>`;
-  });
-  html += `</tr></thead><tbody>`;
-
-  order.forEach(groupName => {
-    const list = buckets[groupName];
-    if (!list || !list.length) return;
-
-    html += `<tr class="group-row"><td colspan="${header.length}">${escapeHtml(groupName)}</td></tr>`;
-
-    list.forEach(r => {
-      html += `<tr>`;
-      for (let i=0;i<header.length;i++){
-        const v = r[i] ?? "";
-        const cls = `${i===idxMesBase ? "col-mesbase" : ""}${i===idxAnoAnterior ? " col-anoanterior" : ""}`.trim();
-        html += `<td class="${cls}">${escapeHtml(v)}</td>`;
-      }
-      html += `</tr>`;
-    });
-  });
-
-  html += `</tbody></table>`;
-  el.innerHTML = html;
+  box.textContent =
+    `Unidade: ${labelUnidade}\n` +
+    `Período: ${formatMonthKeyBR(startMk)} → ${formatMonthKeyBR(endMk)}\n` +
+    `Mês base (cards): ${formatMonthKeyBR(fechamento.mesAtual)}\n` +
+    `Últimos 3 (ano corrente): ${ult3 || "—"}\n` +
+    `Mesmo mês ano anterior: ${fechamento.mesAnoAnterior ? formatMonthKeyBR(fechamento.mesAnoAnterior) : "—"}\n`;
 }
 
 // =======================
-// Mapeamento por indicador (coluna A)
-// =======================
-const MAP_KEYS = [
-  { key: "FATURAMENTO", label: "Faturamento (R$)" },
-  { key: "CUSTOS", label: "Custos (R$)" },
-  { key: "VENDAS", label: "Vendas / Matrículas" },
-  { key: "META_VENDAS", label: "Meta (Matrículas)" },
-  { key: "ATIVOS", label: "Ativos" },
-  { key: "ATIVOS_FINAL", label: "Ativos final" },
-  { key: "PARCELAS_RECEBIDAS", label: "Parcelas recebidas" },
-  { key: "INADIMPLENCIA", label: "Inadimplência (%)" },
-  { key: "EVASAO", label: "Evasão (%)" },
-  { key: "FORMATURA", label: "Formatura" },
-];
-
-function mapStorageKey(tabName){
-  return `kpisgt_map_${CONFIG.SHEET_ID}_${tabName}`;
-}
-
-function loadMapping(tabName){
-  try{
-    const raw = localStorage.getItem(mapStorageKey(tabName));
-    return raw ? JSON.parse(raw) : {};
-  }catch(_){
-    return {};
-  }
-}
-
-function saveMapping(tabName, mapping){
-  localStorage.setItem(mapStorageKey(tabName), JSON.stringify(mapping));
-}
-
-function getIndicatorNamesFromRows(rows){
-  return rows
-    .map(r => safeText(r?.[0]).trim())
-    .filter(v => v && v.toLowerCase() !== "indicador");
-}
-
-function buildMappingUI(indicadores, tabName){
-  const wrap = $("mapWrap");
-  if (!wrap) return;
-
-  wrap.innerHTML = "";
-  const current = loadMapping(tabName);
-
-  const opts = [`<option value="">— selecione —</option>`]
-    .concat(indicadores.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`))
-    .join("");
-
-  MAP_KEYS.forEach(item => {
-    const div = document.createElement("div");
-    div.className = "field";
-    div.innerHTML = `
-      <label>${item.label}</label>
-      <select data-mapkey="${item.key}">
-        ${opts}
-      </select>
-    `;
-    wrap.appendChild(div);
-
-    const sel = div.querySelector("select");
-    const saved = current[item.key] || "";
-    if (saved) sel.value = saved;
-  });
-
-  const btn = $("btnSalvarMap");
-  if (btn){
-    btn.onclick = () => {
-      const mapping = {};
-      wrap.querySelectorAll("select[data-mapkey]").forEach(sel => {
-        const k = sel.getAttribute("data-mapkey");
-        const v = sel.value || "";
-        if (v) mapping[k] = v;
-      });
-      saveMapping(tabName, mapping);
-      window.__KPI_MAP_CURRENT = mapping;
-      setStatus("Mapeamento salvo. Dados carregados.", "success");
-      aplicar(); // redesenha cards/tabela com o mapa novo
-    };
-  }
-}
-
-function getMonthlyValue(series, monthKey, indicadorNome){
-  if (!series?.[monthKey] || !indicadorNome) return null;
-  const v = series[monthKey][indicadorNome];
-  return (v === undefined ? null : v);
-}
-
-function buildMappedValues(series, monthKey, tabName){
-  const map = loadMapping(tabName);
-  window.__KPI_MAP_CURRENT = map;
-
-  const out = {};
-  MAP_KEYS.forEach(k => {
-    const real = map[k.key];
-    out[k.key] = getMonthlyValue(series, monthKey, real);
-  });
-
-  return { values: out, map };
-}
-
-// =======================
-// Cards (seções + Ritmo)
+// Cards (seções + Ritmo) — sem mapeamento manual
 // =======================
 function fmtRitmoText(obj){
   const meta = isNum(obj.meta) ? obj.meta : null;
@@ -580,31 +486,16 @@ function fmtRitmoText(obj){
   ].join("\n");
 }
 
-function renderFechamentoText(tabName, startMk, endMk, fechamento){
-  const box = $("fechamento");
-  if (!box) return;
-
-  const labelUnidade = (CONFIG.UNIDADES.find(u => u.tab === tabName)?.label) || tabName;
-  const ult3 = fechamento.ultimos3AnoCorrente.map(formatMonthKeyBR).join(" | ");
-
-  box.textContent =
-    `Unidade: ${labelUnidade}\n` +
-    `Período: ${formatMonthKeyBR(startMk)} → ${formatMonthKeyBR(endMk)}\n` +
-    `Mês base (cards): ${formatMonthKeyBR(fechamento.mesAtual)}\n` +
-    `Últimos 3 (ano corrente): ${ult3 || "—"}\n` +
-    `Mesmo mês ano anterior: ${fechamento.mesAnoAnterior ? formatMonthKeyBR(fechamento.mesAnoAnterior) : "—"}\n`;
-}
-
-function renderKPICardsMensal(tabName, fechamento, mappedValues, periodoFimISO){
+function renderKPICardsMensal(fechamento, indMap, periodoFimISO){
   const wrap = $("cardsKPI");
   if (!wrap) return;
   wrap.innerHTML = "";
 
   const base = fechamento.mesAtual;
-  const m1 = addMonths(base,-1);
+  const m1 = addMonths(base, -1);
   const aa = fechamento.mesAnoAnterior;
 
-  function deltaOf(realName){
+  function deltaByIndicatorName(realName){
     if (!realName) return { atual:null, dMes:null, dAno:null };
 
     const atual = getMonthlyValue(LAST_SERIES, base, realName);
@@ -617,7 +508,11 @@ function renderKPICardsMensal(tabName, fechamento, mappedValues, periodoFimISO){
     return { atual, dMes, dAno };
   }
 
-  const map = loadMapping(tabName);
+  // avisos se algo não foi encontrado
+  const missing = Object.keys(indMap).filter(k => !indMap[k]);
+  if (missing.length){
+    setStatus(`Dados carregados. Atenção: não identifiquei ${missing.join(", ")} (ajusto o match se você me disser o texto do indicador).`, "warn");
+  }
 
   KPI_SECTIONS.forEach(section => {
     const title = document.createElement("div");
@@ -632,8 +527,11 @@ function renderKPICardsMensal(tabName, fechamento, mappedValues, periodoFimISO){
     section.items.forEach(item => {
       // Ritmo (mensal)
       if (item.calc === "RITMO_META"){
-        const meta = mappedValues["META_VENDAS"];
-        const vendas = mappedValues["VENDAS"];
+        const metaName = indMap.META_VENDAS;
+        const vendasName = indMap.VENDAS;
+
+        const meta = getMonthlyValue(LAST_SERIES, base, metaName);
+        const vendas = getMonthlyValue(LAST_SERIES, base, vendasName);
 
         const diasUteisMes = getMonthBusinessDays(base);
         const diasUteisElap = getBusinessDaysElapsed(base, periodoFimISO);
@@ -641,7 +539,6 @@ function renderKPICardsMensal(tabName, fechamento, mappedValues, periodoFimISO){
 
         const ritmoAtualDia = (isNum(vendas) && diasUteisElap > 0) ? (vendas / diasUteisElap) : null;
         const proj = (isNum(ritmoAtualDia) && diasUteisMes > 0) ? (ritmoAtualDia * diasUteisMes) : null;
-
         const gap = (isNum(meta) && isNum(proj)) ? (meta - proj) : null;
 
         const restante = (isNum(meta) && isNum(vendas)) ? (meta - vendas) : null;
@@ -670,10 +567,10 @@ function renderKPICardsMensal(tabName, fechamento, mappedValues, periodoFimISO){
         return;
       }
 
-      // Resultado (calc) com deltas calculados
+      // Resultado (calc)
       if (item.calc === "RESULTADO"){
-        const fatName = map.FATURAMENTO;
-        const cusName = map.CUSTOS;
+        const fatName = indMap.FATURAMENTO;
+        const cusName = indMap.CUSTOS;
 
         const fat = getMonthlyValue(LAST_SERIES, base, fatName);
         const cus = getMonthlyValue(LAST_SERIES, base, cusName);
@@ -729,9 +626,9 @@ function renderKPICardsMensal(tabName, fechamento, mappedValues, periodoFimISO){
         return;
       }
 
-      // Card normal (mapeado)
-      const realName = map[item.key];
-      const { atual, dMes, dAno } = deltaOf(realName);
+      // Card normal
+      const realName = indMap[item.key];
+      const { atual, dMes, dAno } = deltaByIndicatorName(realName);
 
       const tMes = trendMeta(dMes, item.better);
       const tAno = trendMeta(dAno, item.better);
@@ -771,6 +668,85 @@ function renderKPICardsMensal(tabName, fechamento, mappedValues, periodoFimISO){
       grid.appendChild(card);
     });
   });
+}
+
+// =======================
+// Tabela — agrupamento
+// =======================
+function getGroupName(indicador){
+  const t = safeText(indicador);
+  for (const g of GROUPS){
+    if (g.match.test(t)) return g.name;
+  }
+  return "OUTROS";
+}
+
+function filterMatrixByMonthRange(raw, startMk, endMk){
+  const keepIdx = [0]; // sempre manter a coluna A (indicador)
+
+  for (let i=1;i<raw.header.length;i++){
+    const mk = parseMonthKeyFromHeader(raw.header[i]);
+    if (!mk){
+      keepIdx.push(i);
+      continue;
+    }
+    if (monthKeyBetween(mk, startMk, endMk)) keepIdx.push(i);
+  }
+
+  const header = keepIdx.map(i => raw.header[i]);
+  const rows = raw.rows.map(r => keepIdx.map(i => r[i] ?? ""));
+  return { header, rows };
+}
+
+function renderTableGrouped(header, rows, fechamento){
+  const el = $("preview");
+  if (!el) return;
+
+  let idxMesBase = -1;
+  let idxAnoAnterior = -1;
+
+  for (let i=0;i<header.length;i++){
+    const mk = parseMonthKeyFromHeader(header[i]);
+    if (mk && mk === fechamento.mesAtual) idxMesBase = i;
+    if (mk && fechamento.mesAnoAnterior && mk === fechamento.mesAnoAnterior) idxAnoAnterior = i;
+  }
+
+  const buckets = {};
+  rows.forEach(r => {
+    const ind = r?.[0] ?? "";
+    const g = getGroupName(ind);
+    if (!buckets[g]) buckets[g] = [];
+    buckets[g].push(r);
+  });
+
+  const order = ["FINANCEIRO","COMERCIAL","ACADÊMICO","OPERACIONAL","OUTROS"];
+
+  let html = `<table><thead><tr>`;
+  header.forEach((h, idx) => {
+    const cls = `${idx===idxMesBase ? "col-mesbase" : ""}${idx===idxAnoAnterior ? " col-anoanterior" : ""}`.trim();
+    html += `<th class="${cls}">${escapeHtml(h)}</th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  order.forEach(groupName => {
+    const list = buckets[groupName];
+    if (!list || !list.length) return;
+
+    html += `<tr class="group-row"><td colspan="${header.length}">${escapeHtml(groupName)}</td></tr>`;
+
+    list.forEach(r => {
+      html += `<tr>`;
+      for (let i=0;i<header.length;i++){
+        const v = r[i] ?? "";
+        const cls = `${i===idxMesBase ? "col-mesbase" : ""}${i===idxAnoAnterior ? " col-anoanterior" : ""}`.trim();
+        html += `<td class="${cls}">${escapeHtml(v)}</td>`;
+      }
+      html += `</tr>`;
+    });
+  });
+
+  html += `</tbody></table>`;
+  el.innerHTML = html;
 }
 
 // =======================
@@ -826,16 +802,14 @@ async function carregarDados(){
     const table = await fetchGvizTable(CONFIG.SHEET_ID, tab);
     LAST_RAW = tableToMatrix(table);
 
-    const { series, monthKeys } = matrixToSeriesByMonth(LAST_RAW.header, LAST_RAW.rows);
+    const { series } = matrixToSeriesByMonth(LAST_RAW.header, LAST_RAW.rows);
     LAST_SERIES = series;
-    LAST_MONTH_COLS = monthKeys;
 
-    // monta mapeamento UI com base na coluna A
-    const indicadores = getIndicatorNamesFromRows(LAST_RAW.rows);
-    buildMappingUI(indicadores, tab);
+    // auto-map de indicadores pela coluna A
+    const allNames = buildIndicatorIndexFromRows(LAST_RAW.rows);
+    LAST_IND_MAP = buildAutoIndicatorMap(allNames);
 
     setStatus("Dados carregados.", "success");
-
     aplicar();
   }catch(err){
     console.error(err);
@@ -876,10 +850,8 @@ function aplicar(){
 
     const periodoFimISO = $("periodoFim")?.value || todayISO();
 
-    const { values: mappedValues } = buildMappedValues(LAST_SERIES, mesBase, tab);
-
     renderFechamentoText(tab, startMk, endMk, fechamento);
-    renderKPICardsMensal(tab, fechamento, mappedValues, periodoFimISO);
+    renderKPICardsMensal(fechamento, LAST_IND_MAP, periodoFimISO);
 
     const modo = $("modoTabela")?.value || "intervalo";
     if (modo === "completa"){
@@ -889,7 +861,10 @@ function aplicar(){
       renderTableGrouped(filtered.header, filtered.rows, fechamento);
     }
 
-    setStatus("Dados carregados.", "success");
+    // se não teve warn por indicadores faltando, garante status ok
+    if (($("status")?.dataset?.type || "") !== "warn"){
+      setStatus("Dados carregados.", "success");
+    }
   }catch(err){
     console.error(err);
     setStatus(`ERRO: ${err.message}`, "error");
