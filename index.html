@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dashboard – Gestão da Escola</title>
-  <link rel="stylesheet" href="styles.css?v=20260214" />
+  <link rel="stylesheet" href="styles.css?v=20260214-4" />
 </head>
 
 <body>
@@ -16,19 +16,24 @@
     <div class="card filtros">
       <div class="grid">
         <div class="field">
-          <label>Unidade</label>
+          <label>Unidade (Aba)</label>
           <select id="unidade"></select>
         </div>
 
         <div class="field">
-          <label>Mês base</label>
-          <select id="mesBase"></select>
+          <label>Período — Início</label>
+          <input type="date" id="periodoInicio" />
+        </div>
+
+        <div class="field">
+          <label>Período — Fim</label>
+          <input type="date" id="periodoFim" />
         </div>
 
         <div class="field">
           <label>Modo da tabela</label>
           <select id="modoTabela">
-            <option value="fechamento">Fechamento (base + 3 meses + ano anterior)</option>
+            <option value="intervalo">Intervalo (filtra colunas pelo período)</option>
             <option value="completa">Completa (todos os meses)</option>
           </select>
         </div>
@@ -43,17 +48,35 @@
       </div>
     </div>
 
+    <!-- MAPEAMENTO -->
+    <div class="card">
+      <div class="mapHeader">
+        <div class="mapTitle">Mapeamento de Indicadores (Coluna A)</div>
+        <div class="mapHint">Selecione os indicadores para alimentar os cards. Salva por unidade/aba.</div>
+      </div>
+
+      <div class="grid mapGrid" id="mapWrap"></div>
+
+      <div class="mapActions">
+        <button id="btnSalvarMap">Salvar mapeamento</button>
+      </div>
+    </div>
+
+    <!-- RESUMO / FECHAMENTO -->
     <pre id="fechamento" class="fechamento"></pre>
 
+    <!-- CARDS -->
     <div id="cardsKPI" class="cardsKPI"></div>
 
+    <!-- TABELA -->
     <div id="tableWrap">
       <div id="preview"></div>
     </div>
 
+    <!-- JSON (oculto, mas útil para debug se precisar) -->
     <pre id="json" style="display:none"></pre>
   </div>
 
-  <script src="./app.js?v=20260214"></script>
+  <script src="./app.js?v=20260214-4"></script>
 </body>
 </html>
