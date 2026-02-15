@@ -1,64 +1,171 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard – Gestão da Escola</title>
-  <link rel="stylesheet" href="styles.css?v=20260214-5" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dashboard — Gestão da Escola</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
 </head>
-
 <body>
-  <div class="container">
-    <h1>Dashboard – Gestão da Escola</h1>
+  <div class="app">
+    <header class="top">
+      <h1>Dashboard — Gestão da Escola</h1>
+      <div id="status" class="status">Carregando Google Charts…</div>
+    </header>
 
-    <div id="status" class="status">Inicializando...</div>
-
-    <div class="card filtros">
-      <div class="grid">
+    <section class="controls card">
+      <div class="row">
         <div class="field">
           <label>Unidade (Aba)</label>
-          <select id="unidade"></select>
+          <select id="unitSelect"></select>
         </div>
 
         <div class="field">
           <label>Período — Início</label>
-          <input type="date" id="periodoInicio" />
+          <input id="dateStart" type="date" />
         </div>
 
         <div class="field">
           <label>Período — Fim</label>
-          <input type="date" id="periodoFim" />
+          <input id="dateEnd" type="date" />
         </div>
 
         <div class="field">
           <label>Modo da tabela</label>
-          <select id="modoTabela">
-            <option value="intervalo">Intervalo (filtra colunas pelo período)</option>
-            <option value="completa">Completa (todos os meses)</option>
+          <select id="tableMode">
+            <option value="interval" selected>Intervalo (filtra colunas)</option>
+            <option value="full">Completa (todas as colunas)</option>
           </select>
         </div>
 
         <div class="field actions">
-          <label>&nbsp;</label>
-          <div class="btnrow">
-            <button id="btnCarregar">Carregar</button>
-            <button id="btnAplicar">Aplicar</button>
+          <button id="btnLoad" class="btn">Carregar</button>
+          <button id="btnApply" class="btn btnPrimary">Aplicar</button>
+        </div>
+      </div>
+
+      <div class="meta">
+        <div><b>Unidade:</b> <span id="metaUnit">—</span></div>
+        <div><b>Período:</b> <span id="metaPeriod">—</span></div>
+        <div><b>Mês base (cards):</b> <span id="metaBaseMonth">—</span></div>
+        <div class="hint" id="hintBox"></div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="sectionTitle">FINANCEIRO — RESULTADO</div>
+
+      <div class="kpiCard">
+        <div class="kpiTitle">Faturamento</div>
+        <div class="kpiValue" id="kpi_faturamento">—</div>
+        <div class="kpiSub">
+          <div class="kpiDelta" id="kpi_faturamento_mom">vs mês anterior</div>
+          <div class="kpiDelta" id="kpi_faturamento_yoy">vs ano anterior</div>
+        </div>
+      </div>
+
+      <div class="kpiCard">
+        <div class="kpiTitle">Custos</div>
+        <div class="kpiValue" id="kpi_custo">—</div>
+        <div class="kpiSub">
+          <div class="kpiDelta" id="kpi_custo_mom">vs mês anterior</div>
+          <div class="kpiDelta" id="kpi_custo_yoy">vs ano anterior</div>
+        </div>
+      </div>
+
+      <div class="kpiCard">
+        <div class="kpiTitle">Resultado</div>
+        <div class="kpiValue" id="kpi_resultado">—</div>
+        <div class="kpiSub">
+          <div class="kpiDelta" id="kpi_resultado_mom">vs mês anterior</div>
+          <div class="kpiDelta" id="kpi_resultado_yoy">vs ano anterior</div>
+        </div>
+      </div>
+
+      <div class="sectionTitle">VOLUME — ABSOLUTOS</div>
+
+      <div class="kpiCard">
+        <div class="kpiTitle">Ativos</div>
+        <div class="kpiValue" id="kpi_ativos">—</div>
+        <div class="kpiSub">
+          <div class="kpiDelta" id="kpi_ativos_mom">vs mês anterior</div>
+          <div class="kpiDelta" id="kpi_ativos_yoy">vs ano anterior</div>
+        </div>
+      </div>
+
+      <div class="kpiCard">
+        <div class="kpiTitle">Vendas (Matrículas)</div>
+        <div class="kpiValue" id="kpi_matriculas">—</div>
+        <div class="kpiSub">
+          <div class="kpiDelta" id="kpi_matriculas_mom">vs mês anterior</div>
+          <div class="kpiDelta" id="kpi_matriculas_yoy">vs ano anterior</div>
+        </div>
+      </div>
+
+      <div class="kpiCard">
+        <div class="kpiTitle">Parcelas recebidas</div>
+        <div class="kpiValue" id="kpi_recebidas">—</div>
+        <div class="kpiSub">
+          <div class="kpiDelta" id="kpi_recebidas_mom">vs mês anterior</div>
+          <div class="kpiDelta" id="kpi_recebidas_yoy">vs ano anterior</div>
+        </div>
+      </div>
+
+      <div class="sectionTitle">PERDAS — SAÚDE</div>
+
+      <div class="kpiCard">
+        <div class="kpiTitle">Inadimplência</div>
+        <div class="kpiValue" id="kpi_inad">—</div>
+        <div class="kpiSub">
+          <div class="kpiDelta" id="kpi_inad_mom">vs mês anterior</div>
+          <div class="kpiDelta" id="kpi_inad_yoy">vs ano anterior</div>
+        </div>
+      </div>
+
+      <div class="kpiCard">
+        <div class="kpiTitle">Evasão</div>
+        <div class="kpiValue" id="kpi_evasao">—</div>
+        <div class="kpiSub">
+          <div class="kpiDelta" id="kpi_evasao_mom">vs mês anterior</div>
+          <div class="kpiDelta" id="kpi_evasao_yoy">vs ano anterior</div>
+        </div>
+      </div>
+
+      <div class="kpiCard">
+        <div class="kpiTitle">Margem</div>
+        <div class="kpiValue" id="kpi_margem">—</div>
+        <div class="kpiSub">
+          <div class="kpiDelta" id="kpi_margem_mom">vs mês anterior</div>
+          <div class="kpiDelta" id="kpi_margem_yoy">vs ano anterior</div>
+        </div>
+      </div>
+
+      <div class="sectionTitle">ATIVOS FINAL — FECHAMENTO</div>
+      <div class="wideCard">
+        <div class="wideTitle">Ativos final</div>
+        <div class="wideBody">
+          <div class="wideValue" id="kpi_ativos_final">—</div>
+          <div class="wideSub">
+            <span id="kpi_ativos_final_mom">—</span>
+            <span id="kpi_ativos_final_yoy">—</span>
           </div>
         </div>
       </div>
-    </div>
 
-    <pre id="fechamento" class="fechamento"></pre>
-
-    <div id="cardsKPI"></div>
-
-    <div id="tableWrap">
-      <div id="preview"></div>
-    </div>
-
-    <pre id="json" style="display:none"></pre>
+      <div class="sectionTitle">TABELA — INDICADORES (MENSAL)</div>
+      <div class="tableCard">
+        <div class="tableActions">
+          <div class="pill" id="tblInfo">—</div>
+          <button class="btn" id="btnExpand">Expandir largura</button>
+        </div>
+        <div class="tableWrap" id="tableWrap">
+          <table id="kpiTable"></table>
+        </div>
+      </div>
+    </section>
   </div>
 
-  <script src="./app.js?v=20260214-5"></script>
+  <script src="app.js"></script>
 </body>
 </html>
