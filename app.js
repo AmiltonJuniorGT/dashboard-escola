@@ -2,14 +2,14 @@
 const DATA_SHEET_ID = "1d4G--uvR-fjdn4gP8HM7r69SCHG_6bZNBpe_97Zx3Go";
 
 const TABS = {
-  CAMACARI: "Números Camaçari",
   CAJAZEIRAS: "Números Cajazeiras",
+  CAMACARI: "Números Camaçari",
   SAO_CRISTOVAO: "Números São Cristóvão",
 };
 
 const DEFAULT_UNIT_KEY = "CAMACARI";
 
-// ================= HELPERS =================
+// ================= MATCH (Coluna A) =================
 function norm(s) {
   return String(s ?? "")
     .trim()
@@ -19,95 +19,34 @@ function norm(s) {
 }
 function labelHas(label, keys) {
   const L = norm(label);
-  return (keys || []).some(k => L.includes(norm(k)));
-}
-function brDate(iso){
-  if(!iso) return "—";
-  const [y,m,d] = iso.split("-");
-  return `${d}/${m}/${y}`;
-}
-function toISODate(d){
-  const mm = String(d.getMonth()+1).padStart(2,"0");
-  const dd = String(d.getDate()).padStart(2,"0");
-  return `${d.getFullYear()}-${mm}-${dd}`;
-}
-function monthKey(date){
-  const mm = String(date.getMonth()+1).padStart(2,"0");
-  return `${date.getFullYear()}-${mm}`;
-}
-function fmtMoney(n){
-  if(n == null) return "—";
-  return n.toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
-}
-function fmtInt(n){
-  if(n == null) return "—";
-  const v = Math.round(n);
-  return String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-}
-function fmtPct(p){
-  if(p == null) return "—";
-  return `${p.toFixed(2).replace(".",",")}%`;
-}
-function cleanNumber(v){
-  if(v == null || v === "") return null;
-  if(typeof v === "number") return v;
-  const s = String(v).trim();
-  const cleaned = s.replace(/\./g,"").replace(",",".").replace(/[^\d\.\-]/g,"");
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : null;
-}
-function pctDelta(base, compare){
-  if(base == null || compare == null || compare === 0) return null;
-  return ((base - compare)/compare)*100;
-}
-function deltaClass(delta, lowerIsBetter=false){
-  if(delta == null) return "";
-  if(lowerIsBetter){
-    if(delta < 0) return "good";
-    if(delta > 0) return "bad";
-    return "";
-  }
-  if(delta > 0) return "good";
-  if(delta < 0) return "bad";
-  return "";
+  return keys.some(k => L.includes(norm(k)));
 }
 
-// ================= KPI MATCHES (coluna A) =================
+// ✅ Incluímos CADASTROS aqui
 const KPI_MATCH = {
-  FAT_T: ["FATURAMENTO T (R$)"],
-  FAT_P: ["FATURAMENTO P (R$)"],
-  CUSTO: ["CUSTO OPERACIONAL R$"],
-  LUCRO: ["LUCRO OPERACIONAL R$"],
-  RESULTADO_LIQ: ["RESULTADO LIQUIDO TOTAL R$"],
-  ATIVOS: ["ALUNOS ATIVOS T", "ALUNOS ATIVOS P", "ATIVOS"],
+  ATIVOS_FINAL: ["ALUNOS ATIVOS T", "ALUNOS ATIVOS P", "ATIVOS", "ATIVOS FINAL"],
   MATRICULAS: ["MATRICULAS REALIZADAS"],
   CADASTROS: ["CADASTROS"],
-  INAD: ["INADIMPLENCIA"],
-  EVASAO: ["EVASAO REAL"],
+  FATURAMENTO: ["FATURAMENTO T (R$)", "FATURAMENTO P (R$)", "FATURAMENTO"],
+  CUSTO_OPERACIONAL: ["CUSTO OPERACIONAL R$"],
+  LUCRO_OPERACIONAL: ["LUCRO OPERACIONAL R$"],
+  RESULTADO_LIQUIDO_TOTAL: ["RESULTADO LIQUIDO TOTAL R$"],
   MARGEM: ["MARGEM"],
+  INADIMPLENCIA: ["INADIMPLENCIA"],
+  EVASAO: ["EVASAO REAL"],
+  PARCELAS_RECEBIDAS: ["PARCELAS RECEBIDAS DO MES T", "PARCELAS RECEBIDAS DO MES P", "PARCELAS RECEBIDAS"],
 };
-
-// ================= EXECUTIVE CARDS CONFIG =================
-const EXEC_CARDS = [
-  { id:"fat", title:"Faturamento", type:"money_sum", keys:["FAT_T","FAT_P"] },
-  { id:"custo", title:"Custos", type:"money", key:"CUSTO" },
-  { id:"resultado", title:"Resultado", type:"money_fallback", keys:["LUCRO","RESULTADO_LIQ"] },
-  { id:"ativos", title:"Ativos", type:"int", key:"ATIVOS" },
-  { id:"mat", title:"Matrículas", type:"int", key:"MATRICULAS" },
-  { id:"cad", title:"Cadastros", type:"int", key:"CADASTROS" },
-  { id:"conv", title:"Conversão", type:"conversion", num:"MATRICULAS", den:"CADASTROS" },
-  { id:"inad", title:"Inadimplência", type:"pct", key:"INAD", lowerIsBetter:true },
-];
 
 // ================= STATE =================
 let currentRows = [];
 let colLabels = [];
-let headerMonths = []; // [{idx,label,key}]
+let headerMonths = []; // [{idx, label, key}]
 let selectedMonthIdx = null;
 let selectedMonthLabel = "";
 
 // ================= DOM =================
 const $ = (id) => document.getElementById(id);
+
 const elStatus = $("status");
 const elUnit = $("unitSelect");
 const elStart = $("dateStart");
@@ -118,63 +57,85 @@ const btnApply = $("btnApply");
 const btnExpand = $("btnExpand");
 const tblInfo = $("tblInfo");
 const hintBox = $("hintBox");
+
 const metaUnit = $("metaUnit");
 const metaPeriod = $("metaPeriod");
 const metaBaseMonth = $("metaBaseMonth");
-const GRID = $("kpiGrid");
+
 const WRAP = $("tableWrap");
 const TABLE = $("kpiTable");
 
-// Drawer
-const drawer = $("drawer");
-const drawerBackdrop = $("drawerBackdrop");
-const drawerClose = $("drawerClose");
-const drawerTitle = $("drawerTitle");
-const drawerSub = $("drawerSub");
-const d_base = $("d_base");
-const d_prev = $("d_prev");
-const d_yoy = $("d_yoy");
-const d_mom = $("d_mom");
-const d_yoy_pct = $("d_yoy_pct");
-const spark = $("spark");
-const drawerTable = $("drawerTable");
-const drawerBreakdownBox = $("drawerBreakdownBox");
-const drawerBreakdown = $("drawerBreakdown");
+// KPI targets
+const KPIS = {
+  faturamento: $("kpi_faturamento"),
+  custo: $("kpi_custo"),
+  resultado: $("kpi_resultado"),
+  ativos: $("kpi_ativos"),
+  matriculas: $("kpi_matriculas"),
+  recebidas: $("kpi_recebidas"),
+  inad: $("kpi_inad"),
+  evasao: $("kpi_evasao"),
+  margem: $("kpi_margem"),
+  ativosFinal: $("kpi_ativos_final"),
+
+  // ✅ novos
+  cadastros: $("kpi_cadastros"),
+  conversao: $("kpi_conversao"),
+
+  faturamento_mom: $("kpi_faturamento_mom"),
+  faturamento_yoy: $("kpi_faturamento_yoy"),
+  custo_mom: $("kpi_custo_mom"),
+  custo_yoy: $("kpi_custo_yoy"),
+  resultado_mom: $("kpi_resultado_mom"),
+  resultado_yoy: $("kpi_resultado_yoy"),
+  ativos_mom: $("kpi_ativos_mom"),
+  ativos_yoy: $("kpi_ativos_yoy"),
+  matriculas_mom: $("kpi_matriculas_mom"),
+  matriculas_yoy: $("kpi_matriculas_yoy"),
+  recebidas_mom: $("kpi_recebidas_mom"),
+  recebidas_yoy: $("kpi_recebidas_yoy"),
+  inad_mom: $("kpi_inad_mom"),
+  inad_yoy: $("kpi_inad_yoy"),
+  evasao_mom: $("kpi_evasao_mom"),
+  evasao_yoy: $("kpi_evasao_yoy"),
+  margem_mom: $("kpi_margem_mom"),
+  margem_yoy: $("kpi_margem_yoy"),
+
+  ativos_final_mom: $("kpi_ativos_final_mom"),
+  ativos_final_yoy: $("kpi_ativos_final_yoy"),
+};
 
 // ================= INIT =================
 document.addEventListener("DOMContentLoaded", () => setupUI());
 
-function setStatus(msg){ elStatus.textContent = msg; }
-
 function setupUI() {
-  // unidade select
-  elUnit.innerHTML = Object.entries(TABS).map(([k,v]) =>
+  const entries = Object.entries(TABS);
+  elUnit.innerHTML = entries.map(([k,v]) =>
     `<option value="${k}">${v.replace("Números ","")}</option>`
   ).join("");
   elUnit.value = DEFAULT_UNIT_KEY;
 
-  // datas padrão: ano atual
   const now = new Date();
-  elStart.value = toISODate(new Date(now.getFullYear(),0,1));
-  elEnd.value = toISODate(new Date(now.getFullYear(),11,31));
+  elStart.value = toISODate(new Date(now.getFullYear(), 0, 1));
+  elEnd.value = toISODate(new Date(now.getFullYear(), 11, 31));
 
   btnLoad.addEventListener("click", () => loadData());
   btnApply.addEventListener("click", () => apply());
   btnExpand.addEventListener("click", () => WRAP.classList.toggle("expanded"));
 
-  drawerClose.addEventListener("click", closeDrawer);
-  drawerBackdrop.addEventListener("click", closeDrawer);
-  document.addEventListener("keydown", (e) => { if(e.key === "Escape") closeDrawer(); });
-
-  // cria cards executivos
-  renderExecutiveCards();
-
   setStatus("Pronto. Carregando…");
-  hintBox.textContent = "Carregando dados…";
+  hintBox.textContent = "Carregando…";
   loadData();
 }
 
-// ================= GVIZ =================
+function toISODate(d){
+  const mm = String(d.getMonth()+1).padStart(2,"0");
+  const dd = String(d.getDate()).padStart(2,"0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+function setStatus(msg){ elStatus.textContent = msg; }
+
+// ================= GVIZ FETCH =================
 function sheetUrl(tabName){
   const base = `https://docs.google.com/spreadsheets/d/${DATA_SHEET_ID}/gviz/tq?`;
   const tq = encodeURIComponent("select *");
@@ -185,6 +146,39 @@ function parseGviz(text){
   const m = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?$/);
   if(!m) throw new Error("GViz não retornou setResponse().");
   return JSON.parse(m[1]);
+}
+async function loadData(){
+  const unitKey = elUnit.value;
+  const tabName = TABS[unitKey];
+  setStatus(`Carregando: ${tabName}…`);
+
+  try{
+    const res = await fetch(sheetUrl(tabName), { cache:"no-store" });
+    const txt = await res.text();
+    const data = parseGviz(txt);
+
+    if(data.status !== "ok"){
+      throw new Error(data.errors?.[0]?.detailed_message || "GViz status != ok");
+    }
+
+    colLabels = (data.table.cols || []).map(c => (c?.label ?? "").trim());
+    currentRows = gvizTableToRows(data.table);
+
+    // fallback se labels vierem vazios: usa primeira linha como cabeçalho
+    const labelsOk = colLabels.slice(1).some(x => x && x.length);
+    if(!labelsOk && currentRows.length){
+      colLabels = currentRows[0].map(v => String(v ?? "").trim());
+      currentRows = currentRows.slice(1);
+    }
+
+    detectHeaderMonthsFromCols();
+    setStatus(`Dados carregados. (${tabName})`);
+    apply();
+  }catch(err){
+    console.error(err);
+    setStatus("Erro ao carregar dados.");
+    hintBox.textContent = "Erro: " + (err?.message || err);
+  }
 }
 function gvizTableToRows(table){
   const cols = table.cols.length;
@@ -201,38 +195,7 @@ function gvizTableToRows(table){
   return out;
 }
 
-async function loadData(){
-  const tabName = TABS[elUnit.value];
-  setStatus(`Carregando: ${tabName}…`);
-  try{
-    const res = await fetch(sheetUrl(tabName), { cache:"no-store" });
-    const txt = await res.text();
-    const data = parseGviz(txt);
-    if(data.status !== "ok"){
-      throw new Error(data.errors?.[0]?.detailed_message || "GViz status != ok");
-    }
-
-    colLabels = (data.table.cols || []).map(c => (c?.label ?? "").trim());
-    currentRows = gvizTableToRows(data.table);
-
-    // fallback: se labels vierem vazios, usa primeira linha como cabeçalho
-    const labelsOk = colLabels.slice(1).some(x => x && x.length > 0);
-    if(!labelsOk && currentRows.length){
-      colLabels = currentRows[0].map(v => String(v ?? "").trim());
-      currentRows = currentRows.slice(1);
-    }
-
-    detectHeaderMonths();
-    setStatus(`Dados carregados. (${tabName})`);
-    apply();
-  }catch(err){
-    console.error(err);
-    setStatus("Erro ao carregar dados.");
-    hintBox.textContent = "Erro: " + (err?.message || err);
-  }
-}
-
-// ================= MONTH DETECTION =================
+// ================= MONTH DETECTION (COL LABELS) =================
 const MONTH_MAP = {
   JAN: "01", JANEIRO:"01",
   FEV: "02", FEVEREIRO:"02",
@@ -247,10 +210,12 @@ const MONTH_MAP = {
   NOV: "11", NOVEMBRO:"11",
   DEZ: "12", DEZEMBRO:"12",
 };
-function monthLabelToKey(raw){
+
+function monthLabelToKeyFlexible(raw){
   const s0 = norm(raw);
   if(!s0) return null;
   const s = s0.replace(/[.\-]/g, "/").replace(/\s+/g, "/");
+
   const yMatch = s.match(/(\d{4}|\d{2})/);
   if(!yMatch) return null;
   let yyyy = yMatch[1];
@@ -261,28 +226,34 @@ function monthLabelToKey(raw){
     if(s.includes(k)){ mm = MONTH_MAP[k]; break; }
   }
   if(!mm) return null;
+
   return `${yyyy}-${mm}`;
 }
-function detectHeaderMonths(){
+
+function detectHeaderMonthsFromCols(){
   headerMonths = [];
   for(let c=1;c<colLabels.length;c++){
     const label = colLabels[c];
-    const key = monthLabelToKey(label);
-    if(key) headerMonths.push({ idx:c, label, key });
+    const key = monthLabelToKeyFlexible(label);
+    if(key){
+      headerMonths.push({ idx:c, label, key });
+    }
   }
+
   if(!headerMonths.length){
-    hintBox.textContent = "⚠️ Não detectei meses no cabeçalho. Confirme o formato (ex: jan/25).";
+    hintBox.textContent = "⚠️ Não detectei meses no cabeçalho. Verifique se os cabeçalhos são tipo 'jan/25', 'fev/25' etc.";
   } else {
-    hintBox.textContent = `✅ Meses: ${headerMonths.length} (ex: ${headerMonths[0].label} … ${headerMonths.at(-1).label})`;
+    hintBox.textContent = `✅ Meses detectados: ${headerMonths.length} (ex: ${headerMonths[0].label} … ${headerMonths[headerMonths.length-1].label})`;
   }
 }
+
 function findMonthColByKey(key){
   const m = headerMonths.find(x => x.key === key);
   return m ? m.idx : null;
 }
 
-// ================= DATA ACCESS =================
-function findRow(kpiKey){
+// ================= KPI LOOKUPS =================
+function findRowByKpiKey(kpiKey){
   const keys = KPI_MATCH[kpiKey] || [];
   for(let r=0;r<currentRows.length;r++){
     const label = currentRows[r]?.[0];
@@ -290,138 +261,202 @@ function findRow(kpiKey){
   }
   return null;
 }
-function getVal(kpiKey, colIdx){
-  const row = findRow(kpiKey);
-  return cleanNumber(row?.[colIdx]);
+
+function getCellNumber(row, colIdx){
+  if(!row || colIdx == null) return null;
+  const v = row[colIdx];
+  if (v == null || v === "") return null;
+  if (typeof v === "number") return v;
+  const s = String(v).trim();
+  const cleaned = s.replace(/\./g,"").replace(",",".").replace(/[^\d\.\-]/g,"");
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
 }
 
-// ================= EXEC CARD RENDER =================
-function renderExecutiveCards(){
-  GRID.innerHTML = "";
-  EXEC_CARDS.forEach(cfg => {
-    const card = document.createElement("div");
-    card.className = "kpiCard";
-    card.dataset.cardId = cfg.id;
+function fmtByKey(kpiKey, n){
+  if(n == null) return "—";
 
-    card.innerHTML = `
-      <div class="kpiTitle">${cfg.title}</div>
-      <div class="kpiValue" id="val_${cfg.id}">—</div>
-      <div class="kpiSub">
-        <div class="kpiDelta" id="mom_${cfg.id}">vs mês —</div>
-        <div class="kpiDelta" id="yoy_${cfg.id}">vs ano —</div>
-      </div>
-    `;
+  const isPct =
+    kpiKey.includes("MARGEM") ||
+    kpiKey.includes("INADIMPLENCIA") ||
+    kpiKey.includes("EVASAO");
 
-    card.addEventListener("click", () => openAnalysis(cfg));
-    GRID.appendChild(card);
-  });
+  const isMoney =
+    kpiKey.includes("FATURAMENTO") ||
+    kpiKey.includes("CUSTO") ||
+    kpiKey.includes("LUCRO") ||
+    kpiKey.includes("RESULTADO");
+
+  if(isPct){
+    const val = (n <= 1.5) ? (n*100) : n;
+    return `${val.toFixed(2).replace(".",",")}%`;
+  }
+  if(isMoney){
+    return n.toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
+  }
+  const isInt = Math.abs(n - Math.round(n)) < 1e-9;
+  return isInt ? String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ".") : n.toLocaleString("pt-BR");
 }
 
+function fmtInt(n){
+  if(n == null) return "—";
+  const isInt = Math.abs(n - Math.round(n)) < 1e-9;
+  const val = isInt ? Math.round(n) : n;
+  return String(val).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+function deltaClass(delta, preferLowerIsBetter=false){
+  if(delta == null) return "";
+  if(preferLowerIsBetter){
+    if(delta < 0) return "good";
+    if(delta > 0) return "bad";
+    return "";
+  }
+  if(delta > 0) return "good";
+  if(delta < 0) return "bad";
+  return "";
+}
+
+function fmtDelta(base, compare, kpiKey){
+  if(base == null || compare == null) return { text:"—", cls:"" };
+  const delta = base - compare;
+  const lowerIsBetter = (kpiKey === "INADIMPLENCIA" || kpiKey === "EVASAO");
+  const cls = deltaClass(delta, lowerIsBetter);
+
+  if (compare !== 0) {
+    const pct = (delta / compare) * 100;
+    const s = `${pct >= 0 ? "+" : ""}${pct.toFixed(2).replace(".",",")}%`;
+    return { text:s, cls };
+  }
+  return { text: `${delta >= 0 ? "+" : ""}${delta.toFixed(2).replace(".",",")}`, cls };
+}
+
+// ================= APPLY / RENDER =================
 function apply(){
-  const tabName = TABS[elUnit.value];
-  metaUnit.textContent = tabName.replace("Números ","");
-  metaPeriod.textContent = `${brDate(elStart.value)} → ${brDate(elEnd.value)}`;
-
-  if(!headerMonths.length){
-    metaBaseMonth.textContent = "—";
+  if(!currentRows.length){
+    setStatus("Sem dados.");
     return;
   }
 
-  // mês base = fim do período (se não existir, pega último disponível)
+  const unitKey = elUnit.value;
+  const tabName = TABS[unitKey];
+
+  metaUnit.textContent = tabName.replace("Números ","");
+  metaPeriod.textContent = `${brDate(elStart.value)} → ${brDate(elEnd.value)}`;
+
   const baseDate = new Date(elEnd.value + "T00:00:00");
-  const baseKey = monthKey(baseDate);
-  selectedMonthIdx = findMonthColByKey(baseKey);
-  if(selectedMonthIdx == null) selectedMonthIdx = headerMonths.at(-1).idx;
-
-  selectedMonthLabel = colLabels[selectedMonthIdx] || headerMonths.find(m=>m.idx===selectedMonthIdx)?.label || "—";
-  metaBaseMonth.textContent = selectedMonthLabel;
-
-  // indices prev / yoy
   const prevDate = new Date(baseDate.getFullYear(), baseDate.getMonth()-1, 1);
   const yoyDate  = new Date(baseDate.getFullYear()-1, baseDate.getMonth(), 1);
-  const prevIdx = findMonthColByKey(monthKey(prevDate));
-  const yoyIdx  = findMonthColByKey(monthKey(yoyDate));
 
-  // preenche cards
-  EXEC_CARDS.forEach(cfg => {
-    const { base, prev, yoy, lowerIsBetter } = computeCard(cfg, selectedMonthIdx, prevIdx, yoyIdx);
-    const valEl = $(`val_${cfg.id}`);
-    const momEl = $(`mom_${cfg.id}`);
-    const yoyEl = $(`yoy_${cfg.id}`);
+  const baseKey = monthKey(baseDate);
+  const prevKey = monthKey(prevDate);
+  const yoyKey  = monthKey(yoyDate);
 
-    valEl.textContent = formatCardValue(cfg, base);
-
-    const dm = pctDelta(base, prev);
-    momEl.textContent = dm == null ? "vs mês —" : `vs mês ${dm>=0?"+":""}${dm.toFixed(2).replace(".",",")}%`;
-    momEl.className = `kpiDelta ${deltaClass(dm, !!lowerIsBetter)}`;
-
-    const dy = pctDelta(base, yoy);
-    yoyEl.textContent = dy == null ? "vs ano —" : `vs ano ${dy>=0?"+":""}${dy.toFixed(2).replace(".",",")}%`;
-    yoyEl.className = `kpiDelta ${deltaClass(dy, !!lowerIsBetter)}`;
-  });
-
-  renderTable();
-  tblInfo.textContent = `Base: ${selectedMonthLabel} • Meses: ${headerMonths.length}`;
-}
-
-function computeCard(cfg, baseIdx, prevIdx, yoyIdx){
-  let base=null, prev=null, yoy=null;
-
-  if(cfg.type === "money_sum"){
-    base = sumNullable(cfg.keys.map(k=>getVal(k, baseIdx)));
-    prev = sumNullable(cfg.keys.map(k=>getVal(k, prevIdx)));
-    yoy  = sumNullable(cfg.keys.map(k=>getVal(k, yoyIdx)));
-  } else if(cfg.type === "money_fallback"){
-    const a = getVal(cfg.keys[0], baseIdx);
-    const b = getVal(cfg.keys[1], baseIdx);
-    base = (a!=null ? a : b);
-
-    const ap = getVal(cfg.keys[0], prevIdx);
-    const bp = getVal(cfg.keys[1], prevIdx);
-    prev = (ap!=null ? ap : bp);
-
-    const ay = getVal(cfg.keys[0], yoyIdx);
-    const by = getVal(cfg.keys[1], yoyIdx);
-    yoy = (ay!=null ? ay : by);
-  } else if(cfg.type === "conversion"){
-    const nB = getVal(cfg.num, baseIdx);
-    const dB = getVal(cfg.den, baseIdx);
-    base = (nB!=null && dB!=null && dB!==0) ? (nB/dB)*100 : null;
-
-    const nP = getVal(cfg.num, prevIdx);
-    const dP = getVal(cfg.den, prevIdx);
-    prev = (nP!=null && dP!=null && dP!==0) ? (nP/dP)*100 : null;
-
-    const nY = getVal(cfg.num, yoyIdx);
-    const dY = getVal(cfg.den, yoyIdx);
-    yoy = (nY!=null && dY!=null && dY!==0) ? (nY/dY)*100 : null;
-  } else {
-    base = getVal(cfg.key, baseIdx);
-    prev = getVal(cfg.key, prevIdx);
-    yoy  = getVal(cfg.key, yoyIdx);
+  selectedMonthIdx = findMonthColByKey(baseKey);
+  if(selectedMonthIdx == null && headerMonths.length){
+    selectedMonthIdx = headerMonths[headerMonths.length-1].idx;
   }
 
-  return { base, prev, yoy, lowerIsBetter: cfg.lowerIsBetter };
+  const prevIdx = findMonthColByKey(prevKey);
+  const yoyIdx  = findMonthColByKey(yoyKey);
+
+  selectedMonthLabel = (selectedMonthIdx != null ? colLabels[selectedMonthIdx] : "") || "";
+  metaBaseMonth.textContent = selectedMonthLabel ? String(selectedMonthLabel) : "—";
+
+  // cards
+  renderCard({ valueEl: KPIS.faturamento, momEl: KPIS.faturamento_mom, yoyEl: KPIS.faturamento_yoy, kpiKey: "FATURAMENTO", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.custo, momEl: KPIS.custo_mom, yoyEl: KPIS.custo_yoy, kpiKey: "CUSTO_OPERACIONAL", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+
+  renderCard({
+    valueEl: KPIS.resultado,
+    momEl: KPIS.resultado_mom,
+    yoyEl: KPIS.resultado_yoy,
+    kpiKey: "LUCRO_OPERACIONAL",
+    baseIdx: selectedMonthIdx,
+    prevIdx,
+    yoyIdx,
+    fallbackKey: "RESULTADO_LIQUIDO_TOTAL"
+  });
+
+  renderCard({ valueEl: KPIS.ativos, momEl: KPIS.ativos_mom, yoyEl: KPIS.ativos_yoy, kpiKey: "ATIVOS_FINAL", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+
+  // ✅ vendas + cadastros + conversão
+  renderSalesBlock(selectedMonthIdx, prevIdx, yoyIdx);
+
+  renderCard({ valueEl: KPIS.recebidas, momEl: KPIS.recebidas_mom, yoyEl: KPIS.recebidas_yoy, kpiKey: "PARCELAS_RECEBIDAS", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.inad, momEl: KPIS.inad_mom, yoyEl: KPIS.inad_yoy, kpiKey: "INADIMPLENCIA", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.evasao, momEl: KPIS.evasao_mom, yoyEl: KPIS.evasao_yoy, kpiKey: "EVASAO", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.margem, momEl: KPIS.margem_mom, yoyEl: KPIS.margem_yoy, kpiKey: "MARGEM", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+
+  // Ativos final (mesma base)
+  renderCard({ valueEl: KPIS.ativosFinal, momEl: KPIS.ativos_final_mom, yoyEl: KPIS.ativos_final_yoy, kpiKey: "ATIVOS_FINAL", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+
+  renderTable();
+
+  tblInfo.textContent = `Base: ${selectedMonthLabel || "—"} • Meses: ${headerMonths.length}`;
+  setStatus(`Dados carregados. (${tabName})`);
 }
 
-function formatCardValue(cfg, v){
-  if(v == null) return "—";
-  if(cfg.type === "int") return fmtInt(v);
-  if(cfg.type === "pct" || cfg.type === "conversion") return fmtPct(v);
-  return fmtMoney(v);
+function renderSalesBlock(baseIdx, prevIdx, yoyIdx){
+  const rowMat = findRowByKpiKey("MATRICULAS");
+  const rowCad = findRowByKpiKey("CADASTROS");
+
+  const matriculas = getCellNumber(rowMat, baseIdx);
+  const cadastros  = getCellNumber(rowCad, baseIdx);
+
+  KPIS.matriculas.textContent = fmtInt(matriculas);
+  KPIS.cadastros.textContent  = fmtInt(cadastros);
+
+  // conversão = matrículas / cadastros
+  let conv = null;
+  if(matriculas != null && cadastros != null && cadastros !== 0){
+    conv = (matriculas / cadastros) * 100;
+  }
+  KPIS.conversao.textContent = (conv == null) ? "—" : `${conv.toFixed(2).replace(".",",")}%`;
+
+  // deltas das matrículas (como já era)
+  const prev = getCellNumber(rowMat, prevIdx);
+  const yoy  = getCellNumber(rowMat, yoyIdx);
+
+  const d1 = fmtDelta(matriculas, prev, "MATRICULAS");
+  KPIS.matriculas_mom.textContent = d1.text === "—" ? "vs mês anterior —" : `vs mês anterior ${d1.text}`;
+  KPIS.matriculas_mom.className = `kpiDelta ${d1.cls}`;
+
+  const d2 = fmtDelta(matriculas, yoy, "MATRICULAS");
+  KPIS.matriculas_yoy.textContent = d2.text === "—" ? "vs ano anterior —" : `vs ano anterior ${d2.text}`;
+  KPIS.matriculas_yoy.className = `kpiDelta ${d2.cls}`;
 }
 
-function sumNullable(arr){
-  const nums = arr.filter(x => x != null);
-  if(!nums.length) return null;
-  return nums.reduce((a,b)=>a+b,0);
+function renderCard({ valueEl, momEl, yoyEl, kpiKey, baseIdx, prevIdx, yoyIdx, fallbackKey=null }){
+  let row = findRowByKpiKey(kpiKey);
+  let usedKey = kpiKey;
+
+  if(!row && fallbackKey){
+    row = findRowByKpiKey(fallbackKey);
+    usedKey = fallbackKey;
+  }
+
+  const base = getCellNumber(row, baseIdx);
+  const prev = getCellNumber(row, prevIdx);
+  const yoy = getCellNumber(row, yoyIdx);
+
+  valueEl.textContent = fmtByKey(usedKey, base);
+
+  const d1 = fmtDelta(base, prev, usedKey);
+  momEl.textContent = d1.text === "—" ? "vs mês anterior —" : `vs mês anterior ${d1.text}`;
+  momEl.className = `kpiDelta ${d1.cls}`;
+
+  const d2 = fmtDelta(base, yoy, usedKey);
+  yoyEl.textContent = d2.text === "—" ? "vs ano anterior —" : `vs ano anterior ${d2.text}`;
+  yoyEl.className = `kpiDelta ${d2.cls}`;
 }
 
-// ================= TABLE (mesma planilha, para auditoria) =================
+// ================= TABLE =================
 function renderTable(){
   TABLE.innerHTML = "";
+
   if(!headerMonths.length){
-    TABLE.innerHTML = `<tr><td class="muted">Sem meses detectados.</td></tr>`;
+    TABLE.innerHTML = `<tr><td class="muted">Não identifiquei meses no cabeçalho.</td></tr>`;
     return;
   }
 
@@ -439,8 +474,12 @@ function renderTable(){
   TABLE.appendChild(thead);
 
   const tbody = document.createElement("tbody");
-  for(const row of currentRows){
-    const label = String(row?.[0] ?? "").trim();
+
+  for(let r=0;r<currentRows.length;r++){
+    const row = currentRows[r];
+    if(!row) continue;
+
+    const label = String(row[0] ?? "").trim();
     if(!label) continue;
 
     const tr = document.createElement("tr");
@@ -449,20 +488,24 @@ function renderTable(){
     cols.forEach((c, i) => {
       const td = document.createElement("td");
       const v = row[c.idx];
-      td.textContent = i===0 ? label : (v==null ? "" : String(v));
+      td.textContent = (i===0) ? label : (v == null ? "" : String(v));
       tr.appendChild(td);
     });
+
     tbody.appendChild(tr);
   }
+
   TABLE.appendChild(tbody);
 }
 
 function buildVisibleColumns(mode){
   const cols = [{ idx:0, label:"Indicador" }];
+
   if(mode === "full"){
     headerMonths.forEach(m => cols.push({ idx:m.idx, label:m.label }));
     return cols;
   }
+
   const start = new Date(elStart.value + "T00:00:00");
   const end = new Date(elEnd.value + "T00:00:00");
   const aKey = monthKey(start);
@@ -472,12 +515,16 @@ function buildVisibleColumns(mode){
   const bPos = headerMonths.findIndex(m => m.key === bKey);
 
   if(aPos === -1 || bPos === -1){
-    headerMonths.slice(Math.max(0, headerMonths.length-8)).forEach(m => cols.push({ idx:m.idx, label:m.label }));
+    headerMonths.slice(Math.max(0, headerMonths.length-8))
+      .forEach(m => cols.push({ idx:m.idx, label:m.label }));
     return cols;
   }
-  const a = Math.min(aPos,bPos);
-  const b = Math.max(aPos,bPos);
-  for(let i=a;i<=b;i++) cols.push({ idx: headerMonths[i].idx, label: headerMonths[i].label });
+
+  const a = Math.min(aPos, bPos);
+  const b = Math.max(aPos, bPos);
+  for(let i=a;i<=b;i++){
+    cols.push({ idx: headerMonths[i].idx, label: headerMonths[i].label });
+  }
   return cols;
 }
 
@@ -488,162 +535,13 @@ function isGroupRow(label, row){
   return (looksUpper && !hasNumbers) || L.includes("PLANILHA DE INDICADORES");
 }
 
-// ================= DRAWER ANALYSIS =================
-function openAnalysis(cfg){
-  if(!headerMonths.length) return;
-
-  const tabName = TABS[elUnit.value].replace("Números ","");
-  drawerTitle.textContent = cfg.title;
-  drawerSub.textContent = `${tabName} • Base: ${selectedMonthLabel}`;
-
-  const baseDate = new Date(elEnd.value + "T00:00:00");
-  const prevDate = new Date(baseDate.getFullYear(), baseDate.getMonth()-1, 1);
-  const yoyDate  = new Date(baseDate.getFullYear()-1, baseDate.getMonth(), 1);
-  const prevIdx = findMonthColByKey(monthKey(prevDate));
-  const yoyIdx  = findMonthColByKey(monthKey(yoyDate));
-
-  const { base, prev, yoy, lowerIsBetter } = computeCard(cfg, selectedMonthIdx, prevIdx, yoyIdx);
-
-  d_base.textContent = formatCardValue(cfg, base);
-  d_prev.textContent = formatCardValue(cfg, prev);
-  d_yoy.textContent  = formatCardValue(cfg, yoy);
-
-  const dm = pctDelta(base, prev);
-  d_mom.textContent = dm==null ? "—" : `${dm>=0?"+":""}${dm.toFixed(2).replace(".",",")}%`;
-  d_mom.className = `dValue ${deltaClass(dm, !!lowerIsBetter)}`;
-
-  const dy = pctDelta(base, yoy);
-  d_yoy_pct.textContent = dy==null ? "—" : `${dy>=0?"+":""}${dy.toFixed(2).replace(".",",")}%`;
-  d_yoy_pct.className = `dValue ${deltaClass(dy, !!lowerIsBetter)}`;
-
-  // últimos 12 meses (ou menos, se não tiver)
-  const series = buildLastMonthsSeries(cfg, 12);
-  renderDrawerTable(series, cfg);
-  renderSpark(series);
-
-  // breakdown T/P (quando for faturamento)
-  if(cfg.id === "fat"){
-    renderBreakdownTP(selectedMonthIdx, prevIdx);
-  } else {
-    drawerBreakdownBox.style.display = "none";
-    drawerBreakdown.innerHTML = "";
-  }
-
-  drawerBackdrop.classList.add("open");
-  drawer.classList.add("open");
+// ================= HELPERS =================
+function brDate(iso){
+  if(!iso) return "—";
+  const [y,m,d] = iso.split("-");
+  return `${d}/${m}/${y}`;
 }
-
-function closeDrawer(){
-  drawerBackdrop.classList.remove("open");
-  drawer.classList.remove("open");
-}
-
-function buildLastMonthsSeries(cfg, n){
-  // pega últimos n meses detectados
-  const slice = headerMonths.slice(Math.max(0, headerMonths.length - n));
-  return slice.map(m => {
-    const { base } = computeCard(cfg, m.idx, null, null);
-    return { label: m.label, value: base };
-  });
-}
-
-function renderDrawerTable(series, cfg){
-  drawerTable.innerHTML = "";
-  const thead = document.createElement("thead");
-  thead.innerHTML = `<tr><th>Mês</th><th>Valor</th></tr>`;
-  drawerTable.appendChild(thead);
-
-  const tbody = document.createElement("tbody");
-  for(const it of series){
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${it.label}</td><td>${formatCardValue(cfg, it.value)}</td>`;
-    tbody.appendChild(tr);
-  }
-  drawerTable.appendChild(tbody);
-}
-
-function renderSpark(series){
-  const ctx = spark.getContext("2d");
-  ctx.clearRect(0,0,spark.width,spark.height);
-
-  const values = series.map(s => (s.value==null ? null : Number(s.value))).filter(v => v!=null);
-  if(values.length < 2){
-    ctx.font = "12px system-ui";
-    ctx.fillStyle = "#6b7280";
-    ctx.fillText("Sem dados suficientes para gráfico.", 10, 22);
-    return;
-  }
-
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const pad = 14;
-  const W = spark.width - pad*2;
-  const H = spark.height - pad*2;
-
-  function x(i){ return pad + (W * (i/(series.length-1))); }
-  function y(v){
-    if(max === min) return pad + H/2;
-    return pad + (H * (1 - (v - min)/(max - min)));
-  }
-
-  // linha base
-  ctx.strokeStyle = "#e5e7eb";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(pad, pad+H);
-  ctx.lineTo(pad+W, pad+H);
-  ctx.stroke();
-
-  // linha série
-  ctx.strokeStyle = "#111827";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  let started = false;
-  series.forEach((s,i)=>{
-    if(s.value==null) return;
-    const xi = x(i);
-    const yi = y(s.value);
-    if(!started){ ctx.moveTo(xi,yi); started=true; }
-    else ctx.lineTo(xi,yi);
-  });
-  ctx.stroke();
-
-  // último ponto
-  const lastIdx = [...series].reverse().findIndex(s=>s.value!=null);
-  if(lastIdx !== -1){
-    const i = series.length - 1 - lastIdx;
-    ctx.fillStyle = "#111827";
-    ctx.beginPath();
-    ctx.arc(x(i), y(series[i].value), 3.5, 0, Math.PI*2);
-    ctx.fill();
-  }
-
-  // min/max labels
-  ctx.font = "11px system-ui";
-  ctx.fillStyle = "#6b7280";
-  ctx.fillText("min", pad, pad+10);
-  ctx.fillText("max", pad, pad+H-6);
-}
-
-// Breakdown T/P para faturamento
-function renderBreakdownTP(nowIdx, prevIdx){
-  const tNow = getVal("FAT_T", nowIdx);
-  const pNow = getVal("FAT_P", nowIdx);
-  const tPrev = getVal("FAT_T", prevIdx);
-  const pPrev = getVal("FAT_P", prevIdx);
-
-  const totNow = sumNullable([tNow,pNow]);
-  const totPrev = sumNullable([tPrev,pPrev]);
-
-  drawerBreakdown.innerHTML = `
-    <div class="breakItem"><div class="t">T (base)</div><div class="v">${fmtMoney(tNow)}</div></div>
-    <div class="breakItem"><div class="t">P (base)</div><div class="v">${fmtMoney(pNow)}</div></div>
-    <div class="breakItem"><div class="t">Total (base)</div><div class="v">${fmtMoney(totNow)}</div></div>
-
-    <div class="breakItem"><div class="t">T (mês ant.)</div><div class="v">${fmtMoney(tPrev)}</div></div>
-    <div class="breakItem"><div class="t">P (mês ant.)</div><div class="v">${fmtMoney(pPrev)}</div></div>
-    <div class="breakItem"><div class="t">Total (mês ant.)</div><div class="v">${fmtMoney(totPrev)}</div></div>
-  `;
-
-  drawerBreakdownBox.style.display = "block";
+function monthKey(date){
+  const mm = String(date.getMonth()+1).padStart(2,"0");
+  return `${date.getFullYear()}-${mm}`;
 }
