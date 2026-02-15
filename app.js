@@ -362,4 +362,197 @@ function fmtDelta(base, compare, kpiKey){
   if (compare !== 0) {
     const pct = (delta / compare) * 100;
     const s = `${pct >= 0 ? "+" : ""}${pct.toFixed(2).replace(".",",")}%`;
-    return {
+    return { text:s, cls };
+  }
+  return { text: `${delta >= 0 ? "+" : ""}${delta.toFixed(2).replace(".",",")}`, cls };
+}
+
+// ================= APPLY / RENDER =================
+function apply(){
+  if(!currentRows.length){
+    setStatus("Sem dados.");
+    return;
+  }
+
+  const unitKey = elUnit.value;
+  const tabName = TABS[unitKey];
+
+  metaUnit.textContent = tabName.replace("Números ","");
+  metaPeriod.textContent = `${brDate(elStart.value)} → ${brDate(elEnd.value)}`;
+
+  // base month = mês do fim do período
+  const baseDate = new Date(elEnd.value + "T00:00:00");
+  const prevDate = new Date(baseDate.getFullYear(), baseDate.getMonth()-1, 1);
+  const yoyDate  = new Date(baseDate.getFullYear()-1, baseDate.getMonth(), 1);
+
+  const baseKey = monthKey(baseDate);
+  const prevKey = monthKey(prevDate);
+  const yoyKey  = monthKey(yoyDate);
+
+  selectedMonthIdx = findMonthColByKey(baseKey);
+
+  // fallback: se não achou pelo período, usa o ÚLTIMO mês disponível (nunca fica vazio)
+  if(selectedMonthIdx == null && headerMonths.length){
+    selectedMonthIdx = headerMonths[headerMonths.length-1].idx;
+  }
+
+  const prevIdx = findMonthColByKey(prevKey);
+  const yoyIdx  = findMonthColByKey(yoyKey);
+
+  selectedMonthLabel = (headerRowIndex >= 0 && selectedMonthIdx != null)
+    ? (currentRows[headerRowIndex]?.[selectedMonthIdx] ?? "")
+    : "";
+
+  metaBaseMonth.textContent = selectedMonthLabel ? String(selectedMonthLabel) : "—";
+
+  renderCard({ valueEl: KPIS.faturamento, momEl: KPIS.faturamento_mom, yoyEl: KPIS.faturamento_yoy, kpiKey: "FATURAMENTO", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.custo, momEl: KPIS.custo_mom, yoyEl: KPIS.custo_yoy, kpiKey: "CUSTO_OPERACIONAL", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+
+  renderCard({
+    valueEl: KPIS.resultado,
+    momEl: KPIS.resultado_mom,
+    yoyEl: KPIS.resultado_yoy,
+    kpiKey: "LUCRO_OPERACIONAL",
+    baseIdx: selectedMonthIdx,
+    prevIdx,
+    yoyIdx,
+    fallbackKey: "RESULTADO_LIQUIDO_TOTAL"
+  });
+
+  renderCard({ valueEl: KPIS.ativos, momEl: KPIS.ativos_mom, yoyEl: KPIS.ativos_yoy, kpiKey: "ATIVOS_FINAL", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.matriculas, momEl: KPIS.matriculas_mom, yoyEl: KPIS.matriculas_yoy, kpiKey: "VENDAS_MATRICULAS", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.recebidas, momEl: KPIS.recebidas_mom, yoyEl: KPIS.recebidas_yoy, kpiKey: "PARCELAS_RECEBIDAS", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.inad, momEl: KPIS.inad_mom, yoyEl: KPIS.inad_yoy, kpiKey: "INADIMPLENCIA", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.evasao, momEl: KPIS.evasao_mom, yoyEl: KPIS.evasao_yoy, kpiKey: "EVASAO", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.margem, momEl: KPIS.margem_mom, yoyEl: KPIS.margem_yoy, kpiKey: "MARGEM", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+
+  renderCard({ valueEl: KPIS.ativosFinal, momEl: KPIS.ativos_final_mom, yoyEl: KPIS.ativos_final_yoy, kpiKey: "ATIVOS_FINAL", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+
+  renderTable();
+
+  const baseTxt = selectedMonthLabel ? `Base: ${selectedMonthLabel}` : "Base: —";
+  const headerTxt = headerMonths.length ? `Meses: ${headerMonths.length} (linha ${headerRowIndex+1})` : "Meses: 0";
+  tblInfo.textContent = `${baseTxt} • ${headerTxt}`;
+}
+
+function renderCard({ valueEl, momEl, yoyEl, kpiKey, baseIdx, prevIdx, yoyIdx, fallbackKey=null }){
+  let row = findRowByKpiKey(kpiKey);
+  let usedKey = kpiKey;
+
+  if(!row && fallbackKey){
+    row = findRowByKpiKey(fallbackKey);
+    usedKey = fallbackKey;
+  }
+
+  const base = getCellNumber(row, baseIdx);
+  const prev = getCellNumber(row, prevIdx);
+  const yoy = getCellNumber(row, yoyIdx);
+
+  valueEl.textContent = fmtByKey(usedKey, base);
+
+  const d1 = fmtDelta(base, prev, usedKey);
+  momEl.textContent = d1.text === "—" ? "vs mês anterior —" : `vs mês anterior ${d1.text}`;
+  momEl.className = `kpiDelta ${d1.cls}`;
+
+  const d2 = fmtDelta(base, yoy, usedKey);
+  yoyEl.textContent = d2.text === "—" ? "vs ano anterior —" : `vs ano anterior ${d2.text}`;
+  yoyEl.className = `kpiDelta ${d2.cls}`;
+}
+
+// ================= TABLE =================
+function renderTable(){
+  TABLE.innerHTML = "";
+
+  if(headerRowIndex === -1){
+    TABLE.innerHTML = `<tr><td class="muted">Não identifiquei o cabeçalho de meses.</td></tr>`;
+    return;
+  }
+
+  const mode = elMode.value;
+  const cols = buildVisibleColumns(mode);
+
+  const thead = document.createElement("thead");
+  const trh = document.createElement("tr");
+  cols.forEach(c => {
+    const th = document.createElement("th");
+    th.textContent = c.label;
+    trh.appendChild(th);
+  });
+  thead.appendChild(trh);
+  TABLE.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+
+  for(let r=headerRowIndex+1;r<currentRows.length;r++){
+    const row = currentRows[r];
+    if(!row) continue;
+
+    const label = String(row[0] ?? "").trim();
+    if(!label) continue;
+
+    const tr = document.createElement("tr");
+    if(isGroupRow(label, row)) tr.classList.add("trGroup");
+
+    cols.forEach((c, i) => {
+      const td = document.createElement("td");
+      const v = row[c.idx];
+      td.textContent = (i===0) ? label : (v == null ? "" : String(v));
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  }
+
+  TABLE.appendChild(tbody);
+}
+
+function buildVisibleColumns(mode){
+  const cols = [{ idx:0, label:"Indicador" }];
+
+  if(mode === "full"){
+    headerMonths.forEach(m => cols.push({ idx:m.idx, label:m.label }));
+    return cols;
+  }
+
+  // intervalo: usa mês do start/end para montar range
+  const start = new Date(elStart.value + "T00:00:00");
+  const end = new Date(elEnd.value + "T00:00:00");
+  const aKey = monthKey(start);
+  const bKey = monthKey(end);
+
+  const aPos = headerMonths.findIndex(m => m.key === aKey);
+  const bPos = headerMonths.findIndex(m => m.key === bKey);
+
+  if(aPos === -1 || bPos === -1){
+    // fallback: últimos 8 meses
+    headerMonths.slice(Math.max(0, headerMonths.length-8))
+      .forEach(m => cols.push({ idx:m.idx, label:m.label }));
+    return cols;
+  }
+
+  const a = Math.min(aPos, bPos);
+  const b = Math.max(aPos, bPos);
+  for(let i=a;i<=b;i++){
+    const m = headerMonths[i];
+    cols.push({ idx:m.idx, label:m.label });
+  }
+  return cols;
+}
+
+function isGroupRow(label, row){
+  const L = norm(label);
+  const looksUpper = L === label.toUpperCase();
+  const hasNumbers = row.slice(1).some(v => v != null && String(v).match(/\d/));
+  return (looksUpper && !hasNumbers) || L.includes("PLANILHA DE INDICADORES");
+}
+
+// ================= HELPERS =================
+function brDate(iso){
+  if(!iso) return "—";
+  const [y,m,d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+function monthKey(date){
+  const mm = String(date.getMonth()+1).padStart(2,"0");
+  return `${date.getFullYear()}-${mm}`;
+}
