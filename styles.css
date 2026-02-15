@@ -51,8 +51,7 @@ h1{
   margin-bottom: 12px;
 }
 
-.filtros label,
-#mapWrap label{
+.filtros label{
   font-size: 12px;
   font-weight: 950;
   color: var(--muted);
@@ -64,10 +63,6 @@ h1{
   display:grid;
   grid-template-columns: repeat(5, minmax(170px, 1fr));
   gap: 12px;
-}
-
-.mapGrid{
-  grid-template-columns: repeat(3, minmax(220px, 1fr));
 }
 
 .field select, .field input{
@@ -100,22 +95,6 @@ button#btnAplicar{
 
 button:hover{ filter: brightness(.95); }
 
-.mapHeader{
-  display:flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 10px;
-}
-
-.mapTitle{ font-weight: 1000; }
-.mapHint{ color: var(--muted); font-weight: 800; font-size: 12px; }
-
-.mapActions{
-  margin-top: 10px;
-  display:flex;
-  justify-content:flex-end;
-}
-
 .fechamento{
   background: var(--card);
   border: 1px solid var(--border);
@@ -136,7 +115,7 @@ button:hover{ filter: brightness(.95); }
 
 .kpiSectionGrid{
   display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 12px;
   margin-bottom: 12px;
 }
@@ -191,7 +170,7 @@ button:hover{ filter: brightness(.95); }
 #preview table{
   border-collapse: separate;
   border-spacing: 0;
-  width: max-content; /* permite scroll para esquerda/direita */
+  width: max-content; /* permite scroll lateral */
   min-width: 100%;
   font-size: 13px;
 }
@@ -254,8 +233,6 @@ button:hover{ filter: brightness(.95); }
 
 @media (max-width: 980px){
   .grid{ grid-template-columns: 1fr; }
-  .mapGrid{ grid-template-columns: 1fr; }
   .actions .btnrow{ justify-content: stretch; }
   button{ width: 100%; }
-  .mapActions{ justify-content: stretch; }
 }
