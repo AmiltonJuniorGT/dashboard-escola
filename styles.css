@@ -9,7 +9,6 @@
   --shadow:0 8px 20px rgba(17,24,39,.06);
   --radius:14px;
 }
-
 *{box-sizing:border-box}
 body{
   margin:0;
@@ -17,19 +16,16 @@ body{
   background:var(--bg);
   color:var(--text);
 }
-
 .app{max-width:1100px;margin:20px auto;padding:0 14px 40px}
 .top{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px}
 h1{font-size:20px;margin:0}
 .status{font-size:12px;color:var(--muted)}
-
 .card{
   background:var(--card);
   border:1px solid var(--border);
   border-radius:var(--radius);
   box-shadow:var(--shadow);
 }
-
 .controls{padding:12px 12px 10px}
 .controls .row{
   display:grid;
@@ -76,10 +72,9 @@ h1{font-size:20px;margin:0}
   padding:8px 10px;
   border:1px dashed var(--border);
   border-radius:10px;
-  background:#fbfbfd;
-  color:#374151;
+  background:#fff7ed;
+  color:#7c2d12;
 }
-
 .grid{
   margin-top:14px;
   display:grid;
@@ -87,7 +82,6 @@ h1{font-size:20px;margin:0}
   gap:12px;
   align-items:stretch;
 }
-
 .sectionTitle{
   grid-column: 1 / -1;
   font-size:11px;
@@ -98,7 +92,6 @@ h1{font-size:20px;margin:0}
   padding:0 2px;
   text-transform:uppercase;
 }
-
 .kpiCard{
   background:var(--card);
   border:1px solid var(--border);
@@ -116,7 +109,6 @@ h1{font-size:20px;margin:0}
 .kpiDelta{font-size:12px;color:var(--muted)}
 .kpiDelta.good{color:var(--good);font-weight:800}
 .kpiDelta.bad{color:var(--bad);font-weight:800}
-
 .wideCard{
   grid-column: 1 / -1;
   background:var(--card);
@@ -129,7 +121,6 @@ h1{font-size:20px;margin:0}
 .wideBody{display:flex;align-items:end;justify-content:space-between;gap:10px;margin-top:8px}
 .wideValue{font-size:24px;font-weight:950}
 .wideSub{font-size:12px;color:var(--muted);display:flex;gap:16px}
-
 .tableCard{
   grid-column: 1 / -1;
   background:var(--card);
@@ -157,7 +148,6 @@ h1{font-size:20px;margin:0}
   max-height:520px;
 }
 .tableWrap.expanded{max-height:75vh}
-
 #kpiTable{
   border-collapse:separate;
   border-spacing:0;
