@@ -6,7 +6,6 @@
   --border:#e5e7eb;
   --good:#0f766e;
   --bad:#b91c1c;
-  --warn:#b45309;
   --shadow:0 8px 20px rgba(17,24,39,.06);
   --radius:14px;
 }
@@ -62,7 +61,6 @@ h1{font-size:20px;margin:0}
   font-weight:600;
   font-size:13px;
 }
-.btn:hover{filter:brightness(.98)}
 .btnPrimary{
   background:#111827;
   border-color:#111827;
