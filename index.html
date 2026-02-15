@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard – Gestão da Escola</title>
+  <link rel="stylesheet" href="styles.css?v=20260214" />
+</head>
+
+<body>
+  <div class="container">
+    <h1>Dashboard – Gestão da Escola</h1>
+
+    <div id="status" class="status">Inicializando...</div>
+
+    <div class="card filtros">
+      <div class="grid">
+        <div class="field">
+          <label>Unidade</label>
+          <select id="unidade"></select>
+        </div>
+
+        <div class="field">
+          <label>Mês base</label>
+          <select id="mesBase"></select>
+        </div>
+
+        <div class="field">
+          <label>Modo da tabela</label>
+          <select id="modoTabela">
+            <option value="fechamento">Fechamento (base + 3 meses + ano anterior)</option>
+            <option value="completa">Completa (todos os meses)</option>
+          </select>
+        </div>
+
+        <div class="field actions">
+          <label>&nbsp;</label>
+          <div class="btnrow">
+            <button id="btnCarregar">Carregar</button>
+            <button id="btnAplicar">Aplicar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <pre id="fechamento" class="fechamento"></pre>
+
+    <div id="cardsKPI" class="cardsKPI"></div>
+
+    <div id="tableWrap">
+      <div id="preview"></div>
+    </div>
+
+    <pre id="json" style="display:none"></pre>
+  </div>
+
+  <script src="./app.js?v=20260214"></script>
+</body>
+</html>
