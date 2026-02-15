@@ -25,8 +25,6 @@ function labelHas(label, keys) {
 const KPI_MATCH = {
   ATIVOS_FINAL: ["ALUNOS ATIVOS T", "ALUNOS ATIVOS P", "ATIVOS"],
   VENDAS_MATRICULAS: ["MATRICULAS REALIZADAS"],
-  CADASTROS: ["CADASTROS"],
-  CONVERSAO: ["CONVERSAO (%)"],
   FATURAMENTO: ["FATURAMENTO T (R$)", "FATURAMENTO P (R$)", "FATURAMENTO"],
   CUSTO_OPERACIONAL: ["CUSTO OPERACIONAL R$"],
   LUCRO_OPERACIONAL: ["LUCRO OPERACIONAL R$"],
@@ -34,38 +32,16 @@ const KPI_MATCH = {
   INADIMPLENCIA: ["INADIMPLENCIA"],
   EVASAO: ["EVASAO REAL"],
   PARCELAS_RECEBIDAS: ["PARCELAS RECEBIDAS DO MES T", "PARCELAS RECEBIDAS DO MES P"],
-  PARCELAS_A_RECEBER: ["PARCELAS A RECEBER DO MES T", "PARCELAS A RECEBER DO MES P"],
-  PERC_RECEBIDAS_ATIVOS: ["PARCELAS RECEBIDAS / ATIVOS (%)"],
-  TICKET_MEDIO_PARCELAS: ["TICKET MEDIO DAS PARCELAS (R$)"],
 
   RESULTADO_LIQUIDO_TOTAL: ["RESULTADO LIQUIDO TOTAL R$"],
-  RESULTADO_PERCENTUAL: ["RESULTADO %"],
-  SALDO_FINAL: ["SALDO FINAL"],
-
-  GERACAO_CAIXA: ["GERACAO DE CAIXA"],
-  SALDO_ITAU: ["SALDO DO BANCO ITAU"],
-  SALDO_CAIXA: ["SALDO BANCO - CAIXA"],
-  SALDO_SICOOB: ["SALDO BANCO - SICOOB"],
-  DINHEIRO: ["DINHEIRO"],
-  SALDO_TOTAL: ["SALDO TOTAL", " SALDO TOTAL"],
-
-  CUSTO_TOTAL: ["CUSTO TOTAL", "CUSTO TOTAL R$"],
-  INVESTIMENTO: ["INVESTIMENTO", "INVESTIMENTOS ATACAMA (R$)"],
-  EMPRESTIMO: ["EMPRESTIMO"],
-  DISTRIBUICAO_SOCIOS: ["DISTRIBUICAO SOCIOS"],
-  CINCO_PORCENTO_GESTOR: ["5% DO GESTOR"],
-
-  PESQ_INSTITUCIONAL: ["PESQUISA INSTITUCIONAL"],
-  PESQ_INSTRUTOR: ["PESQUISA DO INSTRUTOR"],
 };
 
 // ================= STATE =================
-let gvizReady = false;
-let currentRows = [];         // array of arrays (full sheet)
+let currentRows = [];
 let headerMonths = [];        // [{idx, label}]
-let headerRowIndex = -1;      // index of header row
-let selectedMonthIdx = null;  // column idx in sheet
-let selectedMonthLabel = "";  // label like "fevereiro/25"
+let headerRowIndex = -1;
+let selectedMonthIdx = null;
+let selectedMonthLabel = "";
 
 // ================= DOM =================
 const $ = (id) => document.getElementById(id);
@@ -124,25 +100,23 @@ const KPIS = {
   ativos_final_yoy: $("kpi_ativos_final_yoy"),
 };
 
-// ================= INIT =================
-google.charts.load("current", { packages: ["corechart", "table"] });
-google.charts.setOnLoadCallback(() => {
-  gvizReady = true;
-  elStatus.textContent = "Pronto.";
+// ================= INIT (SEM Google Charts) =================
+document.addEventListener("DOMContentLoaded", () => {
   setupUI();
 });
 
 function setupUI() {
-  // populate unit select
+  // dropdown SEMPRE aparece
   const entries = Object.entries(TABS);
-  elUnit.innerHTML = entries.map(([k,v]) => `<option value="${k}">${v.replace("Números ","")}</option>`).join("");
+  elUnit.innerHTML = entries.map(([k,v]) =>
+    `<option value="${k}">${v.replace("Números ","")}</option>`
+  ).join("");
   elUnit.value = DEFAULT_UNIT_KEY;
 
-  // default dates: current month range
+  // datas default
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
   elStart.value = toISODate(start);
   elEnd.value = toISODate(end);
 
@@ -150,7 +124,8 @@ function setupUI() {
   btnApply.addEventListener("click", () => apply());
   btnExpand.addEventListener("click", () => WRAP.classList.toggle("expanded"));
 
-  loadData();
+  setStatus("Pronto. Selecione a Unidade e clique em Carregar.");
+  hintBox.textContent = "Se o dropdown está preenchido, a UI está OK. Agora vamos buscar os dados da planilha.";
 }
 
 function toISODate(d){
@@ -159,50 +134,71 @@ function toISODate(d){
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
-// ================= GVIZ FETCH =================
+function setStatus(msg){ elStatus.textContent = msg; }
+
+// ================= GVIZ FETCH (JSONP -> JSON) =================
 function sheetUrl(tabName){
   const base = `https://docs.google.com/spreadsheets/d/${DATA_SHEET_ID}/gviz/tq?`;
   const tq = encodeURIComponent("select *");
   const sheet = encodeURIComponent(tabName);
-  return `${base}tq=${tq}&sheet=${sheet}`;
+  // tqx=out:json ajuda a manter formato mais previsível
+  return `${base}tqx=out:json&tq=${tq}&sheet=${sheet}`;
 }
 
-function loadData(){
-  if(!gvizReady) return;
+// Parse GViz response: google.visualization.Query.setResponse({...})
+function parseGviz(text){
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if(start === -1 || end === -1) throw new Error("Resposta GViz inválida (sem JSON).");
+  const json = text.slice(start, end+1);
+  return JSON.parse(json);
+}
+
+async function loadData(){
   const unitKey = elUnit.value;
   const tabName = TABS[unitKey];
-
   setStatus(`Carregando: ${tabName}…`);
 
-  const query = new google.visualization.Query(sheetUrl(tabName));
-  query.send((res) => {
-    if (res.isError()) {
-      setStatus(`Erro ao carregar: ${res.getMessage()}`);
-      hintBox.textContent = `Erro: ${res.getDetailedMessage?.() || res.getMessage()}`;
-      return;
+  try{
+    const res = await fetch(sheetUrl(tabName), { cache:"no-store" });
+    const txt = await res.text();
+    const data = parseGviz(txt);
+
+    if(data.status !== "ok"){
+      throw new Error(data.errors?.[0]?.detailed_message || "GViz status != ok");
     }
-    const dt = res.getDataTable();
-    currentRows = dataTableToRows(dt);
+
+    currentRows = gvizTableToRows(data.table);
     detectHeaderMonths();
+
     setStatus(`Dados carregados. (${tabName})`);
+    hintBox.textContent = "Dados carregados. Match inteligente ativo (Coluna A).";
     apply();
-  });
+  }catch(err){
+    console.error(err);
+    setStatus("Erro ao carregar dados.");
+    hintBox.textContent =
+      "Falha ao ler a planilha via GViz. " +
+      "Verifique se a planilha está 'Qualquer pessoa com o link' e se a aba existe exatamente com esse nome. " +
+      "Detalhe: " + (err?.message || err);
+  }
 }
 
-function setStatus(msg){ elStatus.textContent = msg; }
+function gvizTableToRows(table){
+  const cols = table.cols.length;
+  const rows = table.rows.length;
+  const out = [];
 
-function dataTableToRows(dt){
-  const rows = [];
-  const cols = dt.getNumberOfColumns();
-  const rCount = dt.getNumberOfRows();
-  for(let r=0;r<rCount;r++){
+  for(let r=0;r<rows;r++){
     const row = [];
     for(let c=0;c<cols;c++){
-      row.push(dt.getValue(r,c));
+      // v (raw) ou f (formatted)
+      const cell = table.rows[r].c[c];
+      row.push(cell ? (cell.v ?? cell.f ?? null) : null);
     }
-    rows.push(row);
+    out.push(row);
   }
-  return rows;
+  return out;
 }
 
 // ================= HEADER/MONTH DETECTION =================
@@ -214,15 +210,13 @@ function detectHeaderMonths(){
 
   for(let r=0;r<currentRows.length;r++){
     const row = currentRows[r];
-    // try find month pattern on any cell except first
     let hits = 0;
     for(let c=1;c<row.length;c++){
       const v = row[c];
       if (v && MONTH_PATTERN.test(norm(v))) hits++;
     }
-    if(hits >= 3){ // heuristic: header row has several months
+    if(hits >= 3){
       headerRowIndex = r;
-      // build headerMonths from that row
       for(let c=1;c<row.length;c++){
         const v = row[c];
         if (v && MONTH_PATTERN.test(norm(v))) {
@@ -237,8 +231,6 @@ function detectHeaderMonths(){
     hintBox.textContent =
       "Atenção: não identifiquei a linha de meses automaticamente. " +
       "Verifique se existe uma linha com 'janeiro/23, fevereiro/25…' nas colunas.";
-  } else {
-    hintBox.textContent = "Dados carregados. Match inteligente ativo (Coluna A).";
   }
 }
 
@@ -260,12 +252,8 @@ function getCellNumber(row, colIdx){
   const v = row[colIdx];
   if (v == null || v === "") return null;
   if (typeof v === "number") return v;
-  // try parse BR formats
   const s = String(v).trim();
-  const cleaned = s
-    .replace(/\./g,"")      // thousands dot
-    .replace(",",".")       // decimal comma
-    .replace(/[^\d\.\-]/g,""); // remove R$, %, spaces
+  const cleaned = s.replace(/\./g,"").replace(",",".").replace(/[^\d\.\-]/g,"");
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : null;
 }
@@ -277,23 +265,15 @@ function fmtByKey(kpiKey, n){
   const isPct =
     key.includes("MARGEM") ||
     key.includes("INADIMPLENCIA") ||
-    key.includes("EVASAO") ||
-    key.includes("PERC_") ||
-    /%/.test(key);
+    key.includes("EVASAO");
 
   const isMoney =
     key.includes("FATURAMENTO") ||
     key.includes("CUSTO") ||
     key.includes("LUCRO") ||
-    key.includes("RESULTADO") ||
-    key.includes("SALDO") ||
-    key.includes("INVEST") ||
-    key.includes("GERACAO") ||
-    key.includes("DISTRIBUICAO") ||
-    key.includes("EMPRESTIMO");
+    key.includes("RESULTADO");
 
   if(isPct){
-    // if value is like 0.0916 -> show 9,16% OR already 9,16 -> show 9,16%
     const val = (n <= 1.5) ? (n*100) : n;
     return `${val.toFixed(2).replace(".",",")}%`;
   }
@@ -302,7 +282,6 @@ function fmtByKey(kpiKey, n){
     return n.toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
   }
 
-  // default integer-ish
   const isInt = Math.abs(n - Math.round(n)) < 1e-9;
   return isInt ? String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ".") : n.toLocaleString("pt-BR");
 }
@@ -322,11 +301,9 @@ function deltaClass(delta, preferLowerIsBetter=false){
 function fmtDelta(base, compare, kpiKey){
   if(base == null || compare == null) return { text:"—", cls:"" };
   const delta = base - compare;
-
   const lowerIsBetter = (kpiKey === "INADIMPLENCIA" || kpiKey === "EVASAO");
   const cls = deltaClass(delta, lowerIsBetter);
 
-  // percentage change (when compare != 0)
   if (compare !== 0) {
     const pct = (delta / compare) * 100;
     const s = `${pct >= 0 ? "+" : ""}${pct.toFixed(2).replace(".",",")}%`;
@@ -338,7 +315,7 @@ function fmtDelta(base, compare, kpiKey){
 // ================= APPLY / RENDER =================
 function apply(){
   if(!currentRows.length){
-    setStatus("Sem dados.");
+    setStatus("Sem dados. Clique em Carregar.");
     return;
   }
 
@@ -348,12 +325,10 @@ function apply(){
   metaUnit.textContent = tabName.replace("Números ","");
   metaPeriod.textContent = `${brDate(elStart.value)} → ${brDate(elEnd.value)}`;
 
-  // Base month = month of end date
   const base = new Date(elEnd.value + "T00:00:00");
   const prev = new Date(base.getFullYear(), base.getMonth()-1, 1);
   const yoy = new Date(base.getFullYear()-1, base.getMonth(), 1);
 
-  // find best month column for base/prev/yoy using headerMonths labels
   const baseKey = monthKey(base);
   const prevKey = monthKey(prev);
   const yoyKey = monthKey(yoy);
@@ -368,28 +343,9 @@ function apply(){
 
   metaBaseMonth.textContent = selectedMonthLabel ? String(selectedMonthLabel) : "—";
 
-  // Cards
-  renderCard({
-    valueEl: KPIS.faturamento,
-    momEl: KPIS.faturamento_mom,
-    yoyEl: KPIS.faturamento_yoy,
-    kpiKey: "FATURAMENTO",
-    baseIdx: selectedMonthIdx,
-    prevIdx,
-    yoyIdx
-  });
+  renderCard({ valueEl: KPIS.faturamento, momEl: KPIS.faturamento_mom, yoyEl: KPIS.faturamento_yoy, kpiKey: "FATURAMENTO", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.custo, momEl: KPIS.custo_mom, yoyEl: KPIS.custo_yoy, kpiKey: "CUSTO_OPERACIONAL", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
 
-  renderCard({
-    valueEl: KPIS.custo,
-    momEl: KPIS.custo_mom,
-    yoyEl: KPIS.custo_yoy,
-    kpiKey: "CUSTO_OPERACIONAL",
-    baseIdx: selectedMonthIdx,
-    prevIdx,
-    yoyIdx
-  });
-
-  // Resultado: por padrão usamos LUCRO_OPERACIONAL (técnico/prof) e fallback para RESULTADO_LIQUIDO_TOTAL (grau educacional)
   renderCard({
     valueEl: KPIS.resultado,
     momEl: KPIS.resultado_mom,
@@ -401,81 +357,17 @@ function apply(){
     fallbackKey: "RESULTADO_LIQUIDO_TOTAL"
   });
 
-  renderCard({
-    valueEl: KPIS.ativos,
-    momEl: KPIS.ativos_mom,
-    yoyEl: KPIS.ativos_yoy,
-    kpiKey: "ATIVOS_FINAL",
-    baseIdx: selectedMonthIdx,
-    prevIdx,
-    yoyIdx
-  });
+  renderCard({ valueEl: KPIS.ativos, momEl: KPIS.ativos_mom, yoyEl: KPIS.ativos_yoy, kpiKey: "ATIVOS_FINAL", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.matriculas, momEl: KPIS.matriculas_mom, yoyEl: KPIS.matriculas_yoy, kpiKey: "VENDAS_MATRICULAS", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.recebidas, momEl: KPIS.recebidas_mom, yoyEl: KPIS.recebidas_yoy, kpiKey: "PARCELAS_RECEBIDAS", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.inad, momEl: KPIS.inad_mom, yoyEl: KPIS.inad_yoy, kpiKey: "INADIMPLENCIA", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.evasao, momEl: KPIS.evasao_mom, yoyEl: KPIS.evasao_yoy, kpiKey: "EVASAO", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
+  renderCard({ valueEl: KPIS.margem, momEl: KPIS.margem_mom, yoyEl: KPIS.margem_yoy, kpiKey: "MARGEM", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
 
-  renderCard({
-    valueEl: KPIS.matriculas,
-    momEl: KPIS.matriculas_mom,
-    yoyEl: KPIS.matriculas_yoy,
-    kpiKey: "VENDAS_MATRICULAS",
-    baseIdx: selectedMonthIdx,
-    prevIdx,
-    yoyIdx
-  });
+  renderCard({ valueEl: KPIS.ativosFinal, momEl: KPIS.ativos_final_mom, yoyEl: KPIS.ativos_final_yoy, kpiKey: "ATIVOS_FINAL", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
 
-  renderCard({
-    valueEl: KPIS.recebidas,
-    momEl: KPIS.recebidas_mom,
-    yoyEl: KPIS.recebidas_yoy,
-    kpiKey: "PARCELAS_RECEBIDAS",
-    baseIdx: selectedMonthIdx,
-    prevIdx,
-    yoyIdx
-  });
-
-  renderCard({
-    valueEl: KPIS.inad,
-    momEl: KPIS.inad_mom,
-    yoyEl: KPIS.inad_yoy,
-    kpiKey: "INADIMPLENCIA",
-    baseIdx: selectedMonthIdx,
-    prevIdx,
-    yoyIdx
-  });
-
-  renderCard({
-    valueEl: KPIS.evasao,
-    momEl: KPIS.evasao_mom,
-    yoyEl: KPIS.evasao_yoy,
-    kpiKey: "EVASAO",
-    baseIdx: selectedMonthIdx,
-    prevIdx,
-    yoyIdx
-  });
-
-  renderCard({
-    valueEl: KPIS.margem,
-    momEl: KPIS.margem_mom,
-    yoyEl: KPIS.margem_yoy,
-    kpiKey: "MARGEM",
-    baseIdx: selectedMonthIdx,
-    prevIdx,
-    yoyIdx
-  });
-
-  // Wide: ativos final (mesmo KPI ATIVOS_FINAL)
-  renderCard({
-    valueEl: KPIS.ativosFinal,
-    momEl: KPIS.ativos_final_mom,
-    yoyEl: KPIS.ativos_final_yoy,
-    kpiKey: "ATIVOS_FINAL",
-    baseIdx: selectedMonthIdx,
-    prevIdx,
-    yoyIdx
-  });
-
-  // Table
   renderTable();
 
-  // info
   const baseTxt = selectedMonthLabel ? `Base: ${selectedMonthLabel}` : "Base: —";
   const headerTxt = headerMonths.length ? `Meses detectados: ${headerMonths.length}` : "Meses detectados: 0";
   tblInfo.textContent = `${baseTxt} • ${headerTxt}`;
@@ -516,10 +408,9 @@ function renderTable(){
   const mode = elMode.value;
   const cols = buildVisibleColumns(mode);
 
-  // THEAD
   const thead = document.createElement("thead");
   const trh = document.createElement("tr");
-  cols.forEach((c, i) => {
+  cols.forEach(c => {
     const th = document.createElement("th");
     th.textContent = c.label;
     trh.appendChild(th);
@@ -527,10 +418,7 @@ function renderTable(){
   thead.appendChild(trh);
   TABLE.appendChild(thead);
 
-  // TBODY
   const tbody = document.createElement("tbody");
-
-  // We will iterate rows after headerRowIndex
   for(let r=headerRowIndex+1;r<currentRows.length;r++){
     const row = currentRows[r];
     if(!row) continue;
@@ -538,42 +426,29 @@ function renderTable(){
     const label = String(row[0] ?? "").trim();
     if(!label) continue;
 
-    // group row heuristic: label all caps and no numeric in other cols
-    const isGroup = isGroupRow(label, row);
-
     const tr = document.createElement("tr");
-    if(isGroup) tr.classList.add("trGroup");
+    if(isGroupRow(label, row)) tr.classList.add("trGroup");
 
     cols.forEach((c, i) => {
       const td = document.createElement("td");
       const v = row[c.idx];
-
-      if(i === 0){
-        td.textContent = label;
-      } else {
-        // keep original for table, but align numbers
-        td.textContent = v == null ? "" : String(v);
-      }
+      td.textContent = (i===0) ? label : (v == null ? "" : String(v));
       tr.appendChild(td);
     });
 
     tbody.appendChild(tr);
   }
-
   TABLE.appendChild(tbody);
 }
 
 function buildVisibleColumns(mode){
-  // always show label col 0
   const cols = [{ idx:0, label:"Indicador" }];
 
   if(mode === "full"){
-    // show all detected month columns
     headerMonths.forEach(m => cols.push({ idx:m.idx, label:m.label }));
     return cols;
   }
 
-  // interval: filter based on dateStart/dateEnd keys
   const start = new Date(elStart.value + "T00:00:00");
   const end = new Date(elEnd.value + "T00:00:00");
   const startKey = monthKey(start);
@@ -582,7 +457,6 @@ function buildVisibleColumns(mode){
   const startIdx = findMonthIndexByKey(startKey);
   const endIdx = findMonthIndexByKey(endKey);
 
-  // fallback: show last 8 months if range not found
   if(startIdx === -1 || endIdx === -1){
     const slice = headerMonths.slice(Math.max(0, headerMonths.length-8));
     slice.forEach(m => cols.push({ idx:m.idx, label:m.label }));
@@ -591,7 +465,6 @@ function buildVisibleColumns(mode){
 
   const a = Math.min(startIdx, endIdx);
   const b = Math.max(startIdx, endIdx);
-
   for(let i=a;i<=b;i++){
     const m = headerMonths[i];
     cols.push({ idx:m.idx, label:m.label });
@@ -603,7 +476,6 @@ function isGroupRow(label, row){
   const L = norm(label);
   const looksUpper = L === label.toUpperCase();
   const hasNumbers = row.slice(1).some(v => v != null && String(v).match(/\d/));
-  // group rows usually have no numbers
   return (looksUpper && !hasNumbers) || L.includes("PLANILHA DE INDICADORES");
 }
 
@@ -618,10 +490,8 @@ function monthKey(date){
   return `${date.getFullYear()}-${mm}`;
 }
 function findMonthIndexByKey(key){
-  // key is YYYY-MM. Compare against header label like "fevereiro/25" or "jan/2023"
   for(let i=0;i<headerMonths.length;i++){
-    const lab = norm(headerMonths[i].label);
-    const k = monthLabelToKey(lab);
+    const k = monthLabelToKey(norm(headerMonths[i].label));
     if(k === key) return i;
   }
   return -1;
@@ -631,15 +501,12 @@ function findMonthColByKey(key){
   if(i === -1) return null;
   return headerMonths[i].idx;
 }
-
-// Convert "FEVEREIRO/25" -> "2025-02"
 function monthLabelToKey(labelNorm){
-  // accepts "FEVEREIRO/25", "JAN/2023", "JANEIRO/23"
   const parts = labelNorm.split("/");
   if(parts.length < 2) return null;
 
   const mPart = parts[0].trim();
-  const yPart = parts[1].trim();
+  let yPart = parts[1].trim();
 
   const map = {
     JAN: "01", JANEIRO:"01",
@@ -656,9 +523,11 @@ function monthLabelToKey(labelNorm){
     DEZ: "12", DEZEMBRO:"12",
   };
 
-  let mm = map[mPart] || map[mPart.slice(0,3)] || null;
+  const mm = map[mPart] || map[mPart.slice(0,3)] || null;
   if(!mm) return null;
 
-  let yyyy = yPart;
-  if(yyyy.length === 2){
-    // assume 20x
+  if(yPart.length === 2) yPart = "20" + yPart;
+  if(yPart.length !== 4) return null;
+
+  return `${yPart}-${mm}`;
+}
