@@ -7,7 +7,7 @@ const TABS = {
   SAO_CRISTOVAO: "Números São Cristóvão",
 };
 
-const DEFAULT_UNIT_KEY = "CAMACARI"; // ✅ Camaçari como base
+const DEFAULT_UNIT_KEY = "CAMACARI";
 
 // ================= MATCH (Coluna A) =================
 function norm(s) {
@@ -25,6 +25,7 @@ function labelHas(label, keys) {
 const KPI_MATCH = {
   ATIVOS_FINAL: ["ALUNOS ATIVOS T", "ALUNOS ATIVOS P", "ATIVOS"],
   VENDAS_MATRICULAS: ["MATRICULAS REALIZADAS"],
+  CADASTROS: ["CADASTROS"],
   FATURAMENTO: ["FATURAMENTO T (R$)", "FATURAMENTO P (R$)", "FATURAMENTO"],
   CUSTO_OPERACIONAL: ["CUSTO OPERACIONAL R$"],
   LUCRO_OPERACIONAL: ["LUCRO OPERACIONAL R$"],
@@ -36,9 +37,9 @@ const KPI_MATCH = {
 };
 
 // ================= STATE =================
-let currentRows = [];
-let headerMonths = [];        // [{idx, label, key}]
-let headerRowIndex = -1;
+let currentRows = [];           // linhas (dados)
+let colLabels = [];             // labels das colunas (GViz cols)
+let headerMonths = [];          // [{idx, label, key}]
 let selectedMonthIdx = null;
 let selectedMonthLabel = "";
 
@@ -121,7 +122,7 @@ function setupUI() {
   btnExpand.addEventListener("click", () => WRAP.classList.toggle("expanded"));
 
   setStatus("Pronto. Carregando dados…");
-  hintBox.textContent = "Usando Camaçari como base. Detectando meses no cabeçalho…";
+  hintBox.textContent = "Detectando meses pelo cabeçalho (labels das colunas)…";
   loadData();
 }
 
@@ -145,6 +146,7 @@ function parseGviz(text){
   if(start === -1 || end === -1) throw new Error("Resposta GViz inválida (sem JSON).");
   return JSON.parse(text.slice(start, end+1));
 }
+
 async function loadData(){
   const unitKey = elUnit.value;
   const tabName = TABS[unitKey];
@@ -159,8 +161,10 @@ async function loadData(){
       throw new Error(data.errors?.[0]?.detailed_message || "GViz status != ok");
     }
 
+    colLabels = (data.table.cols || []).map(c => (c?.label ?? "").trim());
     currentRows = gvizTableToRows(data.table);
-    detectHeaderMonths(); // ✅ agora assume cabeçalho quando fizer sentido
+
+    detectHeaderMonthsFromCols(); // ✅ agora vem do header real
 
     setStatus(`Dados carregados. (${tabName})`);
     apply();
@@ -172,6 +176,7 @@ async function loadData(){
       "Detalhe: " + (err?.message || err);
   }
 }
+
 function gvizTableToRows(table){
   const cols = table.cols.length;
   const rows = table.rows.length;
@@ -187,7 +192,7 @@ function gvizTableToRows(table){
   return out;
 }
 
-// ================= MONTH DETECTION (cabeçalho) =================
+// ================= MONTH DETECTION (COL LABELS) =================
 const MONTH_MAP = {
   JAN: "01", JANEIRO:"01",
   FEV: "02", FEVEREIRO:"02",
@@ -207,7 +212,6 @@ function monthLabelToKeyFlexible(raw){
   const s0 = norm(raw);
   if(!s0) return null;
 
-  // separadores: "/", ".", "-", espaço
   const s = s0.replace(/[.\-]/g, "/").replace(/\s+/g, "/");
 
   // ano (2 ou 4)
@@ -229,59 +233,26 @@ function monthLabelToKeyFlexible(raw){
   return `${yyyy}-${mm}`;
 }
 
-function isMonthCell(v){
-  return monthLabelToKeyFlexible(v) != null;
-}
-
-function detectHeaderMonths(){
+function detectHeaderMonthsFromCols(){
   headerMonths = [];
-  headerRowIndex = -1;
 
-  if(!currentRows.length) return;
-
-  // 1) tenta assumir que o cabeçalho está na linha 1 (row 0)
-  const row0 = currentRows[0];
-  let hits0 = 0;
-  for(let c=1;c<row0.length;c++){
-    if(isMonthCell(row0[c])) hits0++;
-  }
-  if(hits0 >= 3){
-    headerRowIndex = 0;
-  } else {
-    // 2) fallback: procura em outras linhas (caso tenha título acima)
-    for(let r=1;r<Math.min(15, currentRows.length);r++){
-      const row = currentRows[r];
-      let hits = 0;
-      for(let c=1;c<row.length;c++){
-        if(isMonthCell(row[c])) hits++;
-      }
-      if(hits >= 3){
-        headerRowIndex = r;
-        break;
-      }
+  for(let c=1;c<colLabels.length;c++){
+    const label = colLabels[c];
+    const key = monthLabelToKeyFlexible(label);
+    if(key){
+      headerMonths.push({ idx:c, label, key });
     }
   }
 
-  if(headerRowIndex >= 0){
-    const hr = currentRows[headerRowIndex];
-    for(let c=1;c<hr.length;c++){
-      if(isMonthCell(hr[c])){
-        const label = String(hr[c]).trim();
-        const key = monthLabelToKeyFlexible(label);
-        headerMonths.push({ idx:c, label, key });
-      }
-    }
-  }
-
-  if(headerRowIndex === -1 || headerMonths.length === 0){
+  if(!headerMonths.length){
     hintBox.textContent =
-      "⚠️ Não identifiquei os meses no cabeçalho. " +
-      "Me mande um print só da linha 1 (cabeçalho) da Camaçari se ainda falhar.";
+      "⚠️ Não detectei meses nos labels das colunas. " +
+      "Confirme se os cabeçalhos são tipo 'jan./25', 'fev./25' etc (como no print).";
   } else {
-    const first = headerMonths[0]?.label || "—";
-    const last = headerMonths[headerMonths.length-1]?.label || "—";
+    const first = headerMonths[0].label;
+    const last = headerMonths[headerMonths.length-1].label;
     hintBox.textContent =
-      `✅ Meses detectados: ${headerMonths.length} (linha ${headerRowIndex+1}). ` +
+      `✅ Meses detectados no cabeçalho: ${headerMonths.length}. ` +
       `Primeiro: ${first} • Último: ${last}`;
   }
 }
@@ -298,9 +269,8 @@ function findRowByKpiKey(kpiKey){
   if(!keys.length) return null;
 
   for(let r=0;r<currentRows.length;r++){
-    if (r === headerRowIndex) continue;
     const label = currentRows[r]?.[0];
-    if (labelHas(label, keys)) return currentRows[r];
+    if(labelHas(label, keys)) return currentRows[r];
   }
   return null;
 }
@@ -380,7 +350,6 @@ function apply(){
   metaUnit.textContent = tabName.replace("Números ","");
   metaPeriod.textContent = `${brDate(elStart.value)} → ${brDate(elEnd.value)}`;
 
-  // base month = mês do fim do período
   const baseDate = new Date(elEnd.value + "T00:00:00");
   const prevDate = new Date(baseDate.getFullYear(), baseDate.getMonth()-1, 1);
   const yoyDate  = new Date(baseDate.getFullYear()-1, baseDate.getMonth(), 1);
@@ -391,7 +360,7 @@ function apply(){
 
   selectedMonthIdx = findMonthColByKey(baseKey);
 
-  // fallback: se não achou pelo período, usa o ÚLTIMO mês disponível (nunca fica vazio)
+  // fallback: último mês disponível do cabeçalho
   if(selectedMonthIdx == null && headerMonths.length){
     selectedMonthIdx = headerMonths[headerMonths.length-1].idx;
   }
@@ -399,10 +368,7 @@ function apply(){
   const prevIdx = findMonthColByKey(prevKey);
   const yoyIdx  = findMonthColByKey(yoyKey);
 
-  selectedMonthLabel = (headerRowIndex >= 0 && selectedMonthIdx != null)
-    ? (currentRows[headerRowIndex]?.[selectedMonthIdx] ?? "")
-    : "";
-
+  selectedMonthLabel = (selectedMonthIdx != null ? colLabels[selectedMonthIdx] : "") || "";
   metaBaseMonth.textContent = selectedMonthLabel ? String(selectedMonthLabel) : "—";
 
   renderCard({ valueEl: KPIS.faturamento, momEl: KPIS.faturamento_mom, yoyEl: KPIS.faturamento_yoy, kpiKey: "FATURAMENTO", baseIdx: selectedMonthIdx, prevIdx, yoyIdx });
@@ -431,7 +397,7 @@ function apply(){
   renderTable();
 
   const baseTxt = selectedMonthLabel ? `Base: ${selectedMonthLabel}` : "Base: —";
-  const headerTxt = headerMonths.length ? `Meses: ${headerMonths.length} (linha ${headerRowIndex+1})` : "Meses: 0";
+  const headerTxt = headerMonths.length ? `Meses: ${headerMonths.length}` : "Meses: 0";
   tblInfo.textContent = `${baseTxt} • ${headerTxt}`;
 }
 
@@ -463,8 +429,8 @@ function renderCard({ valueEl, momEl, yoyEl, kpiKey, baseIdx, prevIdx, yoyIdx, f
 function renderTable(){
   TABLE.innerHTML = "";
 
-  if(headerRowIndex === -1){
-    TABLE.innerHTML = `<tr><td class="muted">Não identifiquei o cabeçalho de meses.</td></tr>`;
+  if(!headerMonths.length){
+    TABLE.innerHTML = `<tr><td class="muted">Não identifiquei meses no cabeçalho.</td></tr>`;
     return;
   }
 
@@ -483,7 +449,7 @@ function renderTable(){
 
   const tbody = document.createElement("tbody");
 
-  for(let r=headerRowIndex+1;r<currentRows.length;r++){
+  for(let r=0;r<currentRows.length;r++){
     const row = currentRows[r];
     if(!row) continue;
 
@@ -514,7 +480,6 @@ function buildVisibleColumns(mode){
     return cols;
   }
 
-  // intervalo: usa mês do start/end para montar range
   const start = new Date(elStart.value + "T00:00:00");
   const end = new Date(elEnd.value + "T00:00:00");
   const aKey = monthKey(start);
@@ -524,7 +489,6 @@ function buildVisibleColumns(mode){
   const bPos = headerMonths.findIndex(m => m.key === bKey);
 
   if(aPos === -1 || bPos === -1){
-    // fallback: últimos 8 meses
     headerMonths.slice(Math.max(0, headerMonths.length-8))
       .forEach(m => cols.push({ idx:m.idx, label:m.label }));
     return cols;
@@ -533,8 +497,7 @@ function buildVisibleColumns(mode){
   const a = Math.min(aPos, bPos);
   const b = Math.max(aPos, bPos);
   for(let i=a;i<=b;i++){
-    const m = headerMonths[i];
-    cols.push({ idx:m.idx, label:m.label });
+    cols.push({ idx: headerMonths[i].idx, label: headerMonths[i].label });
   }
   return cols;
 }
