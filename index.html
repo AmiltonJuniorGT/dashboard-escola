@@ -18,13 +18,13 @@
         <div class="field">
           <label>Unidades (Abas)</label>
 
-          <!-- Multi-select compacto -->
           <div class="multiSelect" id="multiSelect">
-            <button class="multiBtn" id="unitBtn" type="button">
-              Selecionar unidades
+            <button class="multiBtn" id="unitBtn" type="button" aria-haspopup="true" aria-expanded="false">
+              <span>Selecionar unidades</span>
               <span class="chev">▾</span>
             </button>
-            <div class="multiMenu" id="unitMenu">
+
+            <div class="multiMenu" id="unitMenu" role="menu" aria-label="Seleção de unidades">
               <!-- checkboxes via JS -->
             </div>
           </div>
@@ -51,8 +51,8 @@
         </div>
 
         <div class="field actions">
-          <button id="btnLoad" class="btn">Carregar</button>
-          <button id="btnApply" class="btn btnPrimary">Aplicar</button>
+          <button id="btnLoad" class="btn" type="button">Carregar</button>
+          <button id="btnApply" class="btn btnPrimary" type="button">Aplicar</button>
         </div>
       </div>
 
@@ -163,7 +163,7 @@
       <div class="tableCard">
         <div class="tableActions">
           <div class="pill" id="tblInfo">—</div>
-          <button class="btn" id="btnExpand">Expandir largura</button>
+          <button class="btn" id="btnExpand" type="button">Expandir largura</button>
         </div>
         <div class="tableWrap" id="tableWrap">
           <table id="kpiTable"></table>
@@ -172,6 +172,6 @@
     </section>
   </div>
 
-  <script src="app.js?v=20260218-01"></script>
+  <script src="app.js?v=20260218-02"></script>
 </body>
 </html>
