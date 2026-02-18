@@ -8,6 +8,14 @@
   --bad:#b91c1c;
   --shadow:0 8px 20px rgba(17,24,39,.06);
   --radius:14px;
+
+  /* verdes (tons) */
+  --g1:#166534; /* mais escuro */
+  --g2:#15803d;
+  --g3:#16a34a; /* mais vivo */
+  --gSoft1:#ecfdf5;
+  --gSoft2:#f0fdf4;
+  --gSoft3:#f7fee7;
 }
 
 *{box-sizing:border-box}
@@ -29,13 +37,16 @@ h1{font-size:20px;margin:0}
   box-shadow:var(--shadow);
 }
 
-.controls{padding:12px 12px 10px}
+/* ✅ evita o dropdown ser “cortado” */
+.controls{padding:12px 12px 10px; overflow: visible;}
 .controls .row{
   display:grid;
   grid-template-columns: 1.4fr 1fr 1fr 1fr auto;
   gap:10px;
   align-items:end;
+  overflow: visible;
 }
+
 .field label{
   display:block;
   font-size:12px;
@@ -94,9 +105,14 @@ h1{font-size:20px;margin:0}
 }
 .multiBtn .chev{color:var(--muted)}
 .multiMenu{
-  position:absolute;z-index:10;left:0;right:0;top:calc(100% + 6px);
-  background:#fff;border:1px solid var(--border);
-  border-radius:12px;box-shadow:var(--shadow);
+  position:absolute;
+  z-index:9999; /* ✅ sobe acima de tudo */
+  left:0; right:0;
+  top:calc(100% + 6px);
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:12px;
+  box-shadow:var(--shadow);
   padding:8px;
   display:none;
 }
@@ -158,12 +174,30 @@ h1{font-size:20px;margin:0}
 
 /* Lista comparativa por unidade */
 .kpiList{display:flex;flex-direction:column;gap:8px}
+
 .unitLine{
   border:1px solid var(--border);
   border-radius:12px;
   padding:8px 10px;
   background:#fcfcff;
+  position:relative;
+  overflow:hidden;
 }
+
+/* ✅ tons de verde por unidade (faixa lateral + fundo suave) */
+.unitLine.unit-CAMACARI{
+  background: linear-gradient(0deg, var(--gSoft1), #ffffff);
+  border-left:6px solid var(--g3);
+}
+.unitLine.unit-CAJAZEIRAS{
+  background: linear-gradient(0deg, var(--gSoft2), #ffffff);
+  border-left:6px solid var(--g2);
+}
+.unitLine.unit-SAO_CRISTOVAO{
+  background: linear-gradient(0deg, var(--gSoft3), #ffffff);
+  border-left:6px solid var(--g1);
+}
+
 .unitTop{
   display:flex;justify-content:space-between;gap:10px;align-items:baseline;
 }
@@ -241,4 +275,4 @@ h1{font-size:20px;margin:0}
   letter-spacing:.03em;
   color:#111827;
 }
-.muted{color:var(--
+.muted{color:var(--muted)}
