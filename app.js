@@ -23,7 +23,6 @@ function labelHas(label, keys) {
 }
 
 const KPI_MATCH = {
-  // Valores
   FAT_T: ["FATURAMENTO T (R$)"],
   FAT_P: ["FATURAMENTO P (R$)"],
   FAT:   ["FATURAMENTO"],
@@ -38,7 +37,6 @@ const KPI_MATCH = {
   RECEBIDAS_P: ["PARCELAS RECEBIDAS DO MES P"],
   RECEBIDAS: ["PARCELAS RECEBIDAS DO MES", "PARCELAS RECEBIDAS"],
 
-  // Bases / percentuais
   ATIVOS_T: ["ALUNOS ATIVOS T"],
   ATIVOS_P: ["ALUNOS ATIVOS P"],
   ATIVOS: ["ATIVOS"],
@@ -110,18 +108,28 @@ document.addEventListener("DOMContentLoaded", () => setupUI());
 function setStatus(msg){ elStatus.textContent = msg; }
 
 function setupUI() {
-  // datas padrão: ano atual
   const now = new Date();
   elStart.value = toISODate(new Date(now.getFullYear(),0,1));
   elEnd.value = toISODate(new Date(now.getFullYear(),11,31));
 
-  // multiselect UI
   renderUnitMenu();
   refreshUnitSummary();
 
-  unitBtn.addEventListener("click", () => unitMenu.classList.toggle("open"));
+  // ✅ toggle robusto (não depende de CSS/propagação)
+  unitBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    unitMenu.classList.toggle("open");
+    unitBtn.setAttribute("aria-expanded", unitMenu.classList.contains("open") ? "true" : "false");
+  });
+
+  // fecha ao clicar fora
   document.addEventListener("click", (e) => {
-    if(!e.target.closest("#multiSelect")) unitMenu.classList.remove("open");
+    const inside = e.target.closest("#multiSelect");
+    if(!inside){
+      unitMenu.classList.remove("open");
+      unitBtn.setAttribute("aria-expanded", "false");
+    }
   });
 
   btnLoad.addEventListener("click", () => loadSelectedUnits());
@@ -138,8 +146,9 @@ function prettyUnit(unitKey){
   return TABS[unitKey].replace("Números ","");
 }
 function refreshUnitSummary(){
-  if(!selectedUnits.length) unitSummary.textContent = "Selecione ao menos 1 unidade";
-  else unitSummary.textContent = selectedUnits.map(prettyUnit).join(" • ");
+  unitSummary.textContent = selectedUnits.length
+    ? selectedUnits.map(prettyUnit).join(" • ")
+    : "Selecione ao menos 1 unidade";
 }
 function renderUnitMenu(){
   const keys = Object.keys(TABS);
@@ -166,21 +175,23 @@ function renderUnitMenu(){
       } else {
         selectedUnits = selectedUnits.filter(x => x !== u);
       }
-      // garante pelo menos 1
       if(!selectedUnits.length){
         selectedUnits = ["CAMACARI"];
-        chk.checked = true;
+        // re-render pra refletir
+        renderUnitMenu();
       }
       refreshUnitSummary();
     });
   });
 
-  unitMenu.querySelector("#selAll").addEventListener("click", () => {
+  unitMenu.querySelector("#selAll").addEventListener("click", (e) => {
+    e.stopPropagation();
     selectedUnits = Object.keys(TABS);
     renderUnitMenu();
     refreshUnitSummary();
   });
-  unitMenu.querySelector("#selBase").addEventListener("click", () => {
+  unitMenu.querySelector("#selBase").addEventListener("click", (e) => {
+    e.stopPropagation();
     selectedUnits = ["CAMACARI"];
     renderUnitMenu();
     refreshUnitSummary();
@@ -204,10 +215,6 @@ function monthKey(date){
 }
 function addMonths(d, delta){
   return new Date(d.getFullYear(), d.getMonth()+delta, 1);
-}
-function monthsBetween(a, b){
-  // inclusive months count
-  return (b.getFullYear() - a.getFullYear())*12 + (b.getMonth() - a.getMonth()) + 1;
 }
 
 // ================= FORMAT =================
@@ -342,7 +349,6 @@ async function loadUnit(unitKey){
   let colLabels = (data.table.cols || []).map(c => (c?.label ?? "").trim());
   let rows = gvizTableToRows(data.table);
 
-  // fallback: se labels vazios, usa primeira linha como cabeçalho
   const labelsOk = colLabels.slice(1).some(x => x && x.length);
   if(!labelsOk && rows.length){
     colLabels = rows[0].map(v => String(v ?? "").trim());
@@ -383,7 +389,6 @@ function monthRangeKeys(startISO, endISO){
   }
   return keys;
 }
-
 function buildPeriodIndices(headerMonths, keys){
   return keys.map(k => findMonthColByKey(headerMonths, k)).filter(i => i != null);
 }
@@ -400,21 +405,18 @@ function sumPeriod(rows, headerMonths, kpiKey, periodKeys){
   return any ? total : null;
 }
 function avgPctPeriod(rows, headerMonths, kpiKey, periodKeys){
-  // média simples dos meses (fase 1)
   const idxs = buildPeriodIndices(headerMonths, periodKeys);
   if(!idxs.length) return null;
   let sum = 0, n = 0;
   for(const idx of idxs){
     let v = getVal(rows, kpiKey, idx);
     if(v == null) continue;
-    // se vier 0-1, converte para %
     if(v <= 1.5) v = v*100;
     sum += v; n++;
   }
   return n ? (sum/n) : null;
 }
-function sumAtivosPeriod(rows, headerMonths, periodKeys){
-  // ativos: média do período (mais estável). Se quiser, dá pra pegar último mês.
+function ativosPeriod(rows, headerMonths, periodKeys){
   const idxs = buildPeriodIndices(headerMonths, periodKeys);
   if(!idxs.length) return null;
   let sum = 0, n = 0;
@@ -422,18 +424,15 @@ function sumAtivosPeriod(rows, headerMonths, periodKeys){
     const t = getVal(rows, "ATIVOS_T", idx);
     const p = getVal(rows, "ATIVOS_P", idx);
     const a = getVal(rows, "ATIVOS", idx);
-    const v = (t!=null || p!=null) ? ( (t||0) + (p||0) ) : a;
+    const v = (t!=null || p!=null) ? ((t||0) + (p||0)) : a;
     if(v != null){ sum += v; n++; }
   }
-  return n ? (sum/n) : null; // média
+  return n ? (sum/n) : null;
 }
 function faturamentoPeriod(rows, headerMonths, periodKeys){
-  // Faturamento = T + P (se existir), senão FATURAMENTO
   const t = sumPeriod(rows, headerMonths, "FAT_T", periodKeys);
   const p = sumPeriod(rows, headerMonths, "FAT_P", periodKeys);
-  if(t!=null || p!=null){
-    return (t||0) + (p||0);
-  }
+  if(t!=null || p!=null) return (t||0) + (p||0);
   return sumPeriod(rows, headerMonths, "FAT", periodKeys);
 }
 function recebidasPeriod(rows, headerMonths, periodKeys){
@@ -460,8 +459,6 @@ function apply(){
     hintBox.textContent = "Selecione ao menos 1 unidade.";
     return;
   }
-
-  // garante que as unidades estão carregadas
   for(const u of selectedUnits){
     if(!cache.has(u)){
       hintBox.textContent = "Algumas unidades ainda não carregaram. Clique em Carregar.";
@@ -491,13 +488,9 @@ function apply(){
   const yoyEnd = addMonths(new Date(endDate.getFullYear(), endDate.getMonth(), 1), -12);
   const yoyKeys = monthRangeKeys(toISODate(yoyStart), toISODate(yoyEnd));
 
-  // base (cards): usa o mês final
   metaBaseMonth.textContent = baseKeys.at(-1) || "—";
-
-  // Hint
   hintBox.textContent = `Período com ${monthsCount} mês(es). Comparando com período anterior equivalente e mesmo período do ano anterior.`;
 
-  // Render cards (linhas por unidade)
   renderCardComparative("faturamento", selectedUnits, (u)=>calcUnit(u, "faturamento", baseKeys, prevKeys, yoyKeys));
   renderCardComparative("custo", selectedUnits, (u)=>calcUnit(u, "custo", baseKeys, prevKeys, yoyKeys));
   renderCardComparative("resultado", selectedUnits, (u)=>calcUnit(u, "resultado", baseKeys, prevKeys, yoyKeys));
@@ -513,16 +506,18 @@ function apply(){
   renderCardComparative("evasao", selectedUnits, (u)=>calcUnit(u, "evasao", baseKeys, prevKeys, yoyKeys));
   renderCardComparative("margem", selectedUnits, (u)=>calcUnit(u, "margem", baseKeys, prevKeys, yoyKeys));
 
-  // tabela mostra a unidade principal (primeira selecionada)
   renderTableForPrimary(selectedUnits[0], startISO, endISO);
 
   setStatus("Aplicado.");
 }
 
 // ================= KPI CALC PER UNIT =================
+function prettyUnit(unitKey){
+  return TABS[unitKey].replace("Números ","");
+}
+
 function calcUnit(unitKey, metric, baseKeys, prevKeys, yoyKeys){
   const { rows, headerMonths } = cache.get(unitKey);
-
   const lowerIsBetter = (metric === "inad" || metric === "evasao");
 
   let base=null, prev=null, yoy=null, fmt="";
@@ -547,9 +542,9 @@ function calcUnit(unitKey, metric, baseKeys, prevKeys, yoyKeys){
       fmt = "money"; break;
 
     case "ativos":
-      base = sumAtivosPeriod(rows, headerMonths, baseKeys);
-      prev = sumAtivosPeriod(rows, headerMonths, prevKeys);
-      yoy  = sumAtivosPeriod(rows, headerMonths, yoyKeys);
+      base = ativosPeriod(rows, headerMonths, baseKeys);
+      prev = ativosPeriod(rows, headerMonths, prevKeys);
+      yoy  = ativosPeriod(rows, headerMonths, yoyKeys);
       fmt = "int"; break;
 
     case "matriculas":
@@ -593,9 +588,6 @@ function calcUnit(unitKey, metric, baseKeys, prevKeys, yoyKeys){
       prev = avgPctPeriod(rows, headerMonths, "MARGEM", prevKeys);
       yoy  = avgPctPeriod(rows, headerMonths, "MARGEM", yoyKeys);
       fmt = "pct"; break;
-
-    default:
-      break;
   }
 
   const prevPct = pctDelta(base, prev);
@@ -613,38 +605,19 @@ function formatBy(fmt, v){
 
 // ================= CARD RENDER =================
 function renderCardComparative(metric, units, calcFn){
-  // linhas por unidade
   const lines = units.map(u => calcFn(u));
-
-  // total (consolidado) mostrado no cabeçalho do card
-  const total = consolidateTotal(metric, lines);
+  const total = consolidateTotal(lines);
   TOTAL[metric].textContent = `Total: ${total}`;
-
-  // conteúdo
   CARD[metric].innerHTML = lines.map(x => renderUnitLine(x)).join("");
 }
 
-function consolidateTotal(metric, lines){
-  // total é "nice-to-have" no topo. Faz sentido:
-  // - money/int: soma bases
-  // - pct: média simples das bases
-  // - conversão: consolida via (Σmat/Σcad) => aqui já está por unidade; vamos média simples pra não inventar ponderador agora.
-  const fmt = lines[0]?.fmt || "money";
+function consolidateTotal(lines){
   const bases = lines.map(x=>x.base).filter(v=>v!=null);
-
   if(!bases.length) return "—";
-
-  if(fmt === "money"){
-    const s = bases.reduce((a,b)=>a+b,0);
-    return fmtMoney(s);
-  }
-  if(fmt === "int"){
-    const s = bases.reduce((a,b)=>a+b,0);
-    return fmtInt(s);
-  }
-  // pct
-  const avg = bases.reduce((a,b)=>a+b,0) / bases.length;
-  return fmtPct(avg);
+  const fmt = lines[0]?.fmt || "money";
+  if(fmt === "money") return fmtMoney(bases.reduce((a,b)=>a+b,0));
+  if(fmt === "int") return fmtInt(bases.reduce((a,b)=>a+b,0));
+  return fmtPct(bases.reduce((a,b)=>a+b,0) / bases.length);
 }
 
 function renderUnitLine(x){
@@ -655,7 +628,7 @@ function renderUnitLine(x){
   const yoyPctTxt  = (x.yoyPct==null) ? "—" : `${x.yoyPct>=0?"+":""}${x.yoyPct.toFixed(2).replace(".",",")}%`;
 
   return `
-    <div class="unitLine">
+    <div class="unitLine unit-${x.unitKey}">
       <div class="unitTop">
         <div class="unitName">${prettyUnit(x.unitKey)}</div>
         <div class="unitValue">${formatBy(x.fmt, x.base)}</div>
@@ -673,7 +646,7 @@ function renderTableForPrimary(unitKey, startISO, endISO){
   const pack = cache.get(unitKey);
   if(!pack){ TABLE.innerHTML = `<tr><td class="muted">Sem dados.</td></tr>`; return; }
 
-  const { rows, colLabels, headerMonths } = pack;
+  const { rows, headerMonths } = pack;
   TABLE.innerHTML = "";
 
   if(!headerMonths.length){
@@ -731,7 +704,6 @@ function buildVisibleColumns(mode, headerMonths, startISO, endISO){
     return cols;
   }
 
-  // pega do primeiro ao último idx no range
   const min = Math.min(...idxs), max = Math.max(...idxs);
   const subset = headerMonths.filter(m => m.idx>=min && m.idx<=max);
   subset.forEach(m => cols.push({ idx:m.idx, label:m.label }));
