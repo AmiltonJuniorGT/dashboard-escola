@@ -16,8 +16,20 @@
     <section class="controls card">
       <div class="row">
         <div class="field">
-          <label>Unidade (Aba)</label>
-          <select id="unitSelect"></select>
+          <label>Unidades (Abas)</label>
+
+          <!-- Multi-select compacto -->
+          <div class="multiSelect" id="multiSelect">
+            <button class="multiBtn" id="unitBtn" type="button">
+              Selecionar unidades
+              <span class="chev">▾</span>
+            </button>
+            <div class="multiMenu" id="unitMenu">
+              <!-- checkboxes via JS -->
+            </div>
+          </div>
+
+          <div class="smallMuted" id="unitSummary">—</div>
         </div>
 
         <div class="field">
@@ -45,9 +57,9 @@
       </div>
 
       <div class="meta">
-        <div><b>Unidade:</b> <span id="metaUnit">—</span></div>
+        <div><b>Unidades:</b> <span id="metaUnit">—</span></div>
         <div><b>Período:</b> <span id="metaPeriod">—</span></div>
-        <div><b>Mês base (cards):</b> <span id="metaBaseMonth">—</span></div>
+        <div><b>Base (cards):</b> <span id="metaBaseMonth">—</span></div>
         <div class="hint" id="hintBox"></div>
       </div>
     </section>
@@ -55,114 +67,96 @@
     <section class="grid">
       <div class="sectionTitle">FINANCEIRO — RESULTADO</div>
 
-      <div class="kpiCard" data-card="FATURAMENTO">
-        <div class="kpiTitle">Faturamento</div>
-        <div class="kpiValue" id="kpi_faturamento">—</div>
-        <div class="kpiSub">
-          <div class="kpiDelta" id="kpi_faturamento_mom">vs mês anterior —</div>
-          <div class="kpiDelta" id="kpi_faturamento_yoy">vs ano anterior —</div>
+      <div class="kpiCard">
+        <div class="kpiHeader">
+          <div class="kpiTitle">Faturamento</div>
+          <div class="kpiTotal" id="total_faturamento">Total: —</div>
         </div>
+        <div class="kpiList" id="card_faturamento"></div>
       </div>
 
-      <div class="kpiCard" data-card="CUSTO_OPERACIONAL">
-        <div class="kpiTitle">Custos</div>
-        <div class="kpiValue" id="kpi_custo">—</div>
-        <div class="kpiSub">
-          <div class="kpiDelta" id="kpi_custo_mom">vs mês anterior —</div>
-          <div class="kpiDelta" id="kpi_custo_yoy">vs ano anterior —</div>
+      <div class="kpiCard">
+        <div class="kpiHeader">
+          <div class="kpiTitle">Custos</div>
+          <div class="kpiTotal" id="total_custo">Total: —</div>
         </div>
+        <div class="kpiList" id="card_custo"></div>
       </div>
 
-      <div class="kpiCard" data-card="RESULTADO">
-        <div class="kpiTitle">Resultado</div>
-        <div class="kpiValue" id="kpi_resultado">—</div>
-        <div class="kpiSub">
-          <div class="kpiDelta" id="kpi_resultado_mom">vs mês anterior —</div>
-          <div class="kpiDelta" id="kpi_resultado_yoy">vs ano anterior —</div>
+      <div class="kpiCard">
+        <div class="kpiHeader">
+          <div class="kpiTitle">Resultado</div>
+          <div class="kpiTotal" id="total_resultado">Total: —</div>
         </div>
+        <div class="kpiList" id="card_resultado"></div>
       </div>
 
       <div class="sectionTitle">VOLUME — ABSOLUTOS</div>
 
-      <div class="kpiCard" data-card="ATIVOS">
-        <div class="kpiTitle">Ativos</div>
-        <div class="kpiValue" id="kpi_ativos">—</div>
-        <div class="kpiSub">
-          <div class="kpiDelta" id="kpi_ativos_mom">vs mês anterior —</div>
-          <div class="kpiDelta" id="kpi_ativos_yoy">vs ano anterior —</div>
+      <div class="kpiCard">
+        <div class="kpiHeader">
+          <div class="kpiTitle">Ativos</div>
+          <div class="kpiTotal" id="total_ativos">Total: —</div>
         </div>
+        <div class="kpiList" id="card_ativos"></div>
       </div>
 
-      <!-- ✅ VENDAS agora com Cadastros + Conversão -->
-      <div class="kpiCard" data-card="MATRICULAS">
-        <div class="kpiTitle">Vendas (Matrículas)</div>
-        <div class="kpiValue" id="kpi_matriculas">—</div>
-
-        <div class="kpiMiniRow">
-          <div class="kpiMini">
-            <div class="kpiMiniLabel">Cadastros</div>
-            <div class="kpiMiniValue" id="kpi_cadastros">—</div>
-          </div>
-          <div class="kpiMini">
-            <div class="kpiMiniLabel">Conversão</div>
-            <div class="kpiMiniValue" id="kpi_conversao">—</div>
-          </div>
+      <div class="kpiCard">
+        <div class="kpiHeader">
+          <div class="kpiTitle">Vendas (Matrículas)</div>
+          <div class="kpiTotal" id="total_matriculas">Total: —</div>
         </div>
-
-        <div class="kpiSub">
-          <div class="kpiDelta" id="kpi_matriculas_mom">vs mês anterior —</div>
-          <div class="kpiDelta" id="kpi_matriculas_yoy">vs ano anterior —</div>
-        </div>
+        <div class="kpiList" id="card_matriculas"></div>
       </div>
 
-      <div class="kpiCard" data-card="PARCELAS_RECEBIDAS">
-        <div class="kpiTitle">Parcelas recebidas</div>
-        <div class="kpiValue" id="kpi_recebidas">—</div>
-        <div class="kpiSub">
-          <div class="kpiDelta" id="kpi_recebidas_mom">vs mês anterior —</div>
-          <div class="kpiDelta" id="kpi_recebidas_yoy">vs ano anterior —</div>
+      <div class="kpiCard">
+        <div class="kpiHeader">
+          <div class="kpiTitle">Cadastros</div>
+          <div class="kpiTotal" id="total_cadastros">Total: —</div>
         </div>
+        <div class="kpiList" id="card_cadastros"></div>
+      </div>
+
+      <div class="kpiCard">
+        <div class="kpiHeader">
+          <div class="kpiTitle">Conversão</div>
+          <div class="kpiTotal" id="total_conversao">Total: —</div>
+        </div>
+        <div class="kpiList" id="card_conversao"></div>
+      </div>
+
+      <div class="kpiCard">
+        <div class="kpiHeader">
+          <div class="kpiTitle">Parcelas recebidas</div>
+          <div class="kpiTotal" id="total_recebidas">Total: —</div>
+        </div>
+        <div class="kpiList" id="card_recebidas"></div>
       </div>
 
       <div class="sectionTitle">PERDAS — SAÚDE</div>
 
-      <div class="kpiCard" data-card="INADIMPLENCIA">
-        <div class="kpiTitle">Inadimplência</div>
-        <div class="kpiValue" id="kpi_inad">—</div>
-        <div class="kpiSub">
-          <div class="kpiDelta" id="kpi_inad_mom">vs mês anterior —</div>
-          <div class="kpiDelta" id="kpi_inad_yoy">vs ano anterior —</div>
+      <div class="kpiCard">
+        <div class="kpiHeader">
+          <div class="kpiTitle">Inadimplência</div>
+          <div class="kpiTotal" id="total_inad">Total: —</div>
         </div>
+        <div class="kpiList" id="card_inad"></div>
       </div>
 
-      <div class="kpiCard" data-card="EVASAO">
-        <div class="kpiTitle">Evasão</div>
-        <div class="kpiValue" id="kpi_evasao">—</div>
-        <div class="kpiSub">
-          <div class="kpiDelta" id="kpi_evasao_mom">vs mês anterior —</div>
-          <div class="kpiDelta" id="kpi_evasao_yoy">vs ano anterior —</div>
+      <div class="kpiCard">
+        <div class="kpiHeader">
+          <div class="kpiTitle">Evasão</div>
+          <div class="kpiTotal" id="total_evasao">Total: —</div>
         </div>
+        <div class="kpiList" id="card_evasao"></div>
       </div>
 
-      <div class="kpiCard" data-card="MARGEM">
-        <div class="kpiTitle">Margem</div>
-        <div class="kpiValue" id="kpi_margem">—</div>
-        <div class="kpiSub">
-          <div class="kpiDelta" id="kpi_margem_mom">vs mês anterior —</div>
-          <div class="kpiDelta" id="kpi_margem_yoy">vs ano anterior —</div>
+      <div class="kpiCard">
+        <div class="kpiHeader">
+          <div class="kpiTitle">Margem</div>
+          <div class="kpiTotal" id="total_margem">Total: —</div>
         </div>
-      </div>
-
-      <div class="sectionTitle">ATIVOS FINAL — FECHAMENTO</div>
-      <div class="wideCard">
-        <div class="wideTitle">Ativos final</div>
-        <div class="wideBody">
-          <div class="wideValue" id="kpi_ativos_final">—</div>
-          <div class="wideSub">
-            <span id="kpi_ativos_final_mom">vs mês anterior —</span>
-            <span id="kpi_ativos_final_yoy">vs ano anterior —</span>
-          </div>
-        </div>
+        <div class="kpiList" id="card_margem"></div>
       </div>
 
       <div class="sectionTitle">TABELA — INDICADORES (MENSAL)</div>
@@ -178,6 +172,6 @@
     </section>
   </div>
 
-  <script src="app.js?v=20260215-06"></script>
+  <script src="app.js?v=20260218-01"></script>
 </body>
 </html>
