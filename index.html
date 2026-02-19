@@ -4,13 +4,20 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Dashboard — Gestão da Escola</title>
-  <link rel="stylesheet" href="styles.css?v=20260219-01" />
+  <link rel="stylesheet" href="styles.css?v=20260219-03" />
 </head>
 <body>
   <div class="app">
+
     <header class="top">
-      <h1>Dashboard — Gestão da Escola</h1>
-      <div id="status" class="status">—</div>
+      <div class="topLeft">
+        <h1>Dashboard — Gestão da Escola</h1>
+        <div id="status" class="status">—</div>
+      </div>
+
+      <div class="topRight">
+        <img src="assets/logo-grau.png" alt="Grau Técnico" class="logoGrau" />
+      </div>
     </header>
 
     <section class="controls card">
@@ -25,7 +32,7 @@
             </button>
 
             <div class="multiMenu" id="unitMenu" role="menu" aria-label="Seleção de unidades">
-              <!-- checkboxes via JS -->
+              <!-- preenchido via JS -->
             </div>
           </div>
 
@@ -170,8 +177,9 @@
         </div>
       </div>
     </section>
+
   </div>
 
-  <script src="app.js?v=20260219-01"></script>
+  <script src="app.js?v=20260219-03"></script>
 </body>
 </html>
