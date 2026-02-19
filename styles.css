@@ -14,10 +14,6 @@
   --green-600:#168a63;
   --green-500:#16a34a;
 
-  --mint-50:#ecfdf5;
-  --mint-100:#d1fae5;
-  --lime-50:#f7fee7;
-
   --shadow: 0 12px 26px rgba(16, 24, 40, .08);
   --shadow-soft: 0 8px 16px rgba(16, 24, 40, .06);
 
@@ -36,9 +32,16 @@ body{
 }
 
 .app{max-width:1100px;margin:20px auto;padding:0 14px 40px}
-.top{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px}
-h1{font-size:20px;margin:0;letter-spacing:-0.02em}
 
+/* header com logo */
+.top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:16px;
+}
+.topLeft{display:flex;flex-direction:column;gap:6px}
+h1{font-size:20px;margin:0;letter-spacing:-0.02em}
 .status{
   font-size:12px;
   color:var(--muted);
@@ -46,6 +49,13 @@ h1{font-size:20px;margin:0;letter-spacing:-0.02em}
   border-radius:999px;
   border:1px solid var(--border);
   background:rgba(255,255,255,.75);
+  width:fit-content;
+}
+.topRight{display:flex;align-items:center;justify-content:flex-end}
+.logoGrau{
+  height:56px;
+  object-fit:contain;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
 }
 
 .card{
@@ -252,7 +262,6 @@ h1{font-size:20px;margin:0;letter-spacing:-0.02em}
   gap:10px;
   white-space:nowrap;
 }
-.tag{display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
 
 .pct.good{
   color: #0f766e;
