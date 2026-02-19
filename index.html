@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Dashboard — Gestão da Escola</title>
-  <link rel="stylesheet" href="styles.css?v=20260219-03" />
+  <link rel="stylesheet" href="styles.css?v=20260219-05" />
 </head>
 <body>
   <div class="app">
@@ -16,7 +16,8 @@
       </div>
 
       <div class="topRight">
-        <img src="assets/logo-grau.png" alt="Grau Técnico" class="logoGrau" />
+        <!-- IMPORTANTE: assets/logo-grau.png (case-sensitive no GitHub Pages) -->
+        <img src="./assets/logo-grau.png" alt="Grau Técnico" class="logoGrau" />
       </div>
     </header>
 
@@ -27,13 +28,11 @@
 
           <div class="multiSelect" id="multiSelect">
             <button class="multiBtn" id="unitBtn" type="button" aria-haspopup="true" aria-expanded="false">
-              <span>Selecionar unidades</span>
+              <span id="unitBtnLabel">Selecionar unidades</span>
               <span class="chev">▾</span>
             </button>
 
-            <div class="multiMenu" id="unitMenu" role="menu" aria-label="Seleção de unidades">
-              <!-- preenchido via JS -->
-            </div>
+            <div class="multiMenu" id="unitMenu" role="menu" aria-label="Seleção de unidades"></div>
           </div>
 
           <div class="smallMuted" id="unitSummary">—</div>
@@ -72,6 +71,7 @@
     </section>
 
     <section class="grid">
+      <!-- ===================== FINANCEIRO ===================== -->
       <div class="sectionTitle">FINANCEIRO — RESULTADO</div>
 
       <div class="kpiCard">
@@ -98,6 +98,7 @@
         <div class="kpiList" id="card_resultado"></div>
       </div>
 
+      <!-- ===================== VOLUME ===================== -->
       <div class="sectionTitle">VOLUME — ABSOLUTOS</div>
 
       <div class="kpiCard">
@@ -140,6 +141,7 @@
         <div class="kpiList" id="card_recebidas"></div>
       </div>
 
+      <!-- ===================== SAÚDE ===================== -->
       <div class="sectionTitle">PERDAS — SAÚDE</div>
 
       <div class="kpiCard">
@@ -166,7 +168,9 @@
         <div class="kpiList" id="card_margem"></div>
       </div>
 
+      <!-- ===================== TABELA ===================== -->
       <div class="sectionTitle">TABELA — INDICADORES (MENSAL)</div>
+
       <div class="tableCard">
         <div class="tableActions">
           <div class="pill" id="tblInfo">—</div>
@@ -180,6 +184,6 @@
 
   </div>
 
-  <script src="app.js?v=20260219-03"></script>
+  <script src="app.js?v=20260219-05"></script>
 </body>
 </html>
