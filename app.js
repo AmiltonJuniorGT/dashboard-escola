@@ -1,14 +1,63 @@
 // ================= CONFIG =================
 const DATA_SHEET_ID = "1d4G--uvR-fjdn4gP8HM7r69SCHG_6bZNBpe_97Zx3Go";
+
 const TABS = {
   CAMACARI: "Números Camaçari",
   CAJAZEIRAS: "Números Cajazeiras",
   SAO_CRISTOVAO: "Números São Cristóvão",
 };
+
 const DEFAULT_SELECTED = ["CAMACARI"];
+
+// ================= NORMALIZE =================
+function norm(s) {
+  return String(s ?? "")
+    .trim()
+    .toUpperCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+function labelHas(label, keys) {
+  const L = norm(label);
+  return keys.some(k => L.includes(norm(k)));
+}
+
+// ================= KPI MATCH (Coluna A) =================
+// (mantém flexível, porque os nomes podem ter variações)
+const KPI_MATCH = {
+  // Financeiro
+  FAT_T: ["FATURAMENTO T (R$)"],
+  FAT_P: ["FATURAMENTO P (R$)"],
+  FAT:   ["FATURAMENTO"],
+
+  CUSTO: ["CUSTO OPERACIONAL R$"],
+  LUCRO: ["LUCRO OPERACIONAL R$"],
+  RESULTADO_LIQ: ["RESULTADO LIQUIDO TOTAL R$", "RESULTADO LIQUIDO TOTAL"],
+
+  // Volume
+  MAT: ["MATRICULAS REALIZADAS", "MATRÍCULAS REALIZADAS"],
+  CAD: ["CADASTROS", "CADASTRO"],
+  RECEBIDAS_T: ["PARCELAS RECEBIDAS DO MES T", "PARCELAS RECEBIDAS DO MÊS T"],
+  RECEBIDAS_P: ["PARCELAS RECEBIDAS DO MES P", "PARCELAS RECEBIDAS DO MÊS P"],
+  RECEBIDAS: ["PARCELAS RECEBIDAS DO MES", "PARCELAS RECEBIDAS", "PARCELAS RECEBIDAS DO MÊS"],
+
+  ATIVOS_T: ["ALUNOS ATIVOS T"],
+  ATIVOS_P: ["ALUNOS ATIVOS P"],
+  ATIVOS: ["ATIVOS", "ALUNOS ATIVOS"],
+
+  // Saúde
+  INAD: ["INADIMPLENCIA", "INADIMPLÊNCIA"],
+  EVASAO: ["EVASAO REAL", "EVASÃO REAL"],
+  MARGEM: ["MARGEM"],
+};
+
+// ================= STATE =================
+const cache = new Map(); // unitKey -> { rows, colLabels, headerMonths }
+let selectedUnits = [...DEFAULT_SELECTED];
 
 // ================= DOM =================
 const $ = (id) => document.getElementById(id);
+
 const elStatus = $("status");
 const elStart = $("dateStart");
 const elEnd = $("dateEnd");
@@ -27,45 +76,142 @@ const unitBtnLabel = $("unitBtnLabel");
 const unitMenu = $("unitMenu");
 const unitSummary = $("unitSummary");
 
-const tblInfo = $("tblInfo");
 const WRAP = $("tableWrap");
 const TABLE = $("kpiTable");
+const tblInfo = $("tblInfo");
 
+// Cards containers (todas as linhas)
 const CARD = {
   faturamento: $("card_faturamento"),
   custo: $("card_custo"),
   resultado: $("card_resultado"),
+
+  ativos: $("card_ativos"),
+  matriculas: $("card_matriculas"),
+  cadastros: $("card_cadastros"),
+  conversao: $("card_conversao"),
+  recebidas: $("card_recebidas"),
+
+  inad: $("card_inad"),
+  evasao: $("card_evasao"),
+  margem: $("card_margem"),
 };
+
 const TOTAL = {
   faturamento: $("total_faturamento"),
   custo: $("total_custo"),
   resultado: $("total_resultado"),
+
+  ativos: $("total_ativos"),
+  matriculas: $("total_matriculas"),
+  cadastros: $("total_cadastros"),
+  conversao: $("total_conversao"),
+  recebidas: $("total_recebidas"),
+
+  inad: $("total_inad"),
+  evasao: $("total_evasao"),
+  margem: $("total_margem"),
 };
 
-// ================= STATE =================
-let selectedUnits = [...DEFAULT_SELECTED];
-const cache = new Map(); // unitKey -> { rows, colLabels, headerMonths }
+// ================= INIT =================
+document.addEventListener("DOMContentLoaded", () => setupUI());
 
-// ================= NORMALIZE / MATCH =================
-function norm(s) {
-  return String(s ?? "")
-    .trim()
-    .toUpperCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ");
+function setStatus(msg){ if(elStatus) elStatus.textContent = msg; }
+
+// ================= UI SETUP =================
+function setupUI() {
+  const now = new Date();
+  elStart.value = toISODate(new Date(now.getFullYear(),0,1));
+  elEnd.value = toISODate(new Date(now.getFullYear(),11,31));
+
+  renderUnitMenu();
+  refreshUnitSummary();
+
+  // dropdown robusto
+  unitBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    unitMenu.classList.toggle("open");
+    unitBtn.setAttribute("aria-expanded", unitMenu.classList.contains("open") ? "true" : "false");
+  });
+
+  document.addEventListener("click", (e) => {
+    const inside = e.target.closest("#multiSelect");
+    if(!inside){
+      unitMenu.classList.remove("open");
+      unitBtn?.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  btnLoad?.addEventListener("click", () => loadSelectedUnits(true));
+  btnApply?.addEventListener("click", () => apply());
+  btnExpand?.addEventListener("click", () => WRAP?.classList.toggle("expanded"));
+
+  setStatus("Pronto. Carregando…");
+  hintBox.textContent = "Carregando dados…";
+  loadSelectedUnits(false);
 }
-function labelHas(label, keys) {
-  const L = norm(label);
-  return keys.some(k => L.includes(norm(k)));
+
+// ================= UI HELPERS =================
+function prettyUnit(unitKey){ return TABS[unitKey].replace("Números ",""); }
+
+function refreshUnitSummary(){
+  const txt = selectedUnits.length
+    ? selectedUnits.map(prettyUnit).join(" • ")
+    : "Selecione ao menos 1 unidade";
+  if(unitSummary) unitSummary.textContent = txt;
+  if(unitBtnLabel) unitBtnLabel.textContent = selectedUnits.length ? `${selectedUnits.length} unidade(s)` : "Selecionar unidades";
 }
-const KPI_MATCH = {
-  FAT_T: ["FATURAMENTO T (R$)"],
-  FAT_P: ["FATURAMENTO P (R$)"],
-  FAT:   ["FATURAMENTO"],
-  CUSTO: ["CUSTO OPERACIONAL R$"],
-  LUCRO: ["LUCRO OPERACIONAL R$"],
-  RESULTADO_LIQ: ["RESULTADO LIQUIDO TOTAL R$"],
-};
+
+function renderUnitMenu(){
+  if(!unitMenu) return;
+  const keys = Object.keys(TABS);
+
+  unitMenu.innerHTML = keys.map(k => {
+    const checked = selectedUnits.includes(k) ? "checked" : "";
+    return `
+      <label class="chkRow">
+        <input type="checkbox" data-unit="${k}" ${checked}/>
+        <span>${prettyUnit(k)}</span>
+      </label>
+    `;
+  }).join("") + `
+    <div class="multiFoot">
+      <button class="linkBtn" id="selAll" type="button">Todos</button>
+      <button class="linkBtn" id="selBase" type="button">Só Camaçari</button>
+    </div>
+  `;
+
+  unitMenu.querySelectorAll('input[type="checkbox"]').forEach(chk => {
+    chk.addEventListener("change", () => {
+      const u = chk.dataset.unit;
+      if(chk.checked){
+        if(!selectedUnits.includes(u)) selectedUnits.push(u);
+      } else {
+        selectedUnits = selectedUnits.filter(x => x !== u);
+      }
+      if(!selectedUnits.length){
+        selectedUnits = ["CAMACARI"];
+        renderUnitMenu();
+      }
+      refreshUnitSummary();
+    });
+  });
+
+  unitMenu.querySelector("#selAll")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    selectedUnits = Object.keys(TABS);
+    renderUnitMenu();
+    refreshUnitSummary();
+  });
+
+  unitMenu.querySelector("#selBase")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    selectedUnits = ["CAMACARI"];
+    renderUnitMenu();
+    refreshUnitSummary();
+  });
+}
 
 // ================= DATE HELPERS =================
 function toISODate(d){
@@ -82,12 +228,15 @@ function monthKey(date){
   const mm = String(date.getMonth()+1).padStart(2,"0");
   return `${date.getFullYear()}-${mm}`;
 }
-function addMonths(d, delta){ return new Date(d.getFullYear(), d.getMonth()+delta, 1); }
+function addMonths(d, delta){
+  return new Date(d.getFullYear(), d.getMonth()+delta, 1);
+}
 function monthRangeKeys(startISO, endISO){
   const s = new Date(startISO+"T00:00:00");
   const e = new Date(endISO+"T00:00:00");
   const a = new Date(s.getFullYear(), s.getMonth(), 1);
   const b = new Date(e.getFullYear(), e.getMonth(), 1);
+
   const keys = [];
   let cur = new Date(a);
   while(cur <= b){
@@ -96,18 +245,18 @@ function monthRangeKeys(startISO, endISO){
   }
   return keys;
 }
-function monthsN(keys){ return keys?.length ? keys.length : 1; }
+function monthsN(keys){ return (keys && keys.length) ? keys.length : 1; }
 function prevMonthKey(startISO){
   const d = new Date(startISO+"T00:00:00");
   const startMonth = new Date(d.getFullYear(), d.getMonth(), 1);
   return monthKey(addMonths(startMonth, -1));
 }
-function shiftPeriodKeys(keys, deltaMonths){
+function shiftKeys(keys, deltaMonths){
   if(!keys.length) return [];
-  const first = keys[0] + "-01";
-  const last = keys[keys.length-1] + "-01";
-  const a = addMonths(new Date(first+"T00:00:00"), deltaMonths);
-  const b = addMonths(new Date(last+"T00:00:00"), deltaMonths);
+  const first = new Date(keys[0] + "-01T00:00:00");
+  const last = new Date(keys[keys.length-1] + "-01T00:00:00");
+  const a = addMonths(new Date(first.getFullYear(), first.getMonth(), 1), deltaMonths);
+  const b = addMonths(new Date(last.getFullYear(), last.getMonth(), 1), deltaMonths);
   return monthRangeKeys(toISODate(a), toISODate(b));
 }
 
@@ -124,6 +273,11 @@ function fmtMoney(n){
   if(n == null) return "—";
   return n.toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
 }
+function fmtInt(n){
+  if(n == null) return "—";
+  const v = Math.round(n);
+  return String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
 function fmtPct(n){
   if(n == null) return "—";
   return `${n.toFixed(2).replace(".",",")}%`;
@@ -132,13 +286,17 @@ function pctDelta(base, comp){
   if(base == null || comp == null || comp === 0) return null;
   return ((base - comp)/comp)*100;
 }
-function deltaCls(pct){
+function deltaCls(pct, lowerIsBetter=false){
   if(pct == null) return "";
+  if(lowerIsBetter){
+    if(pct < 0) return "good";
+    if(pct > 0) return "bad";
+    return "";
+  }
   if(pct > 0) return "good";
   if(pct < 0) return "bad";
   return "";
 }
-function setStatus(msg){ elStatus.textContent = msg; }
 
 // ================= GVIZ =================
 function sheetUrl(tabName){
@@ -153,11 +311,14 @@ function parseGviz(text){
   return JSON.parse(m[1]);
 }
 function gvizTableToRows(table){
+  const cols = table.cols.length;
+  const rows = table.rows.length;
   const out = [];
-  for(const r of table.rows){
+  for(let r=0;r<rows;r++){
     const row = [];
-    for(const c of r.c){
-      row.push(c ? (c.v ?? c.f ?? null) : null);
+    for(let c=0;c<cols;c++){
+      const cell = table.rows[r].c[c];
+      row.push(cell ? (cell.v ?? cell.f ?? null) : null);
     }
     out.push(row);
   }
@@ -190,8 +351,9 @@ function monthLabelToKey(raw){
 function detectHeaderMonths(colLabels){
   const headerMonths = [];
   for(let c=1;c<colLabels.length;c++){
-    const key = monthLabelToKey(colLabels[c]);
-    if(key) headerMonths.push({ idx:c, label:colLabels[c], key });
+    const label = (colLabels[c] ?? "").trim();
+    const key = monthLabelToKey(label);
+    if(key) headerMonths.push({ idx:c, label, key });
   }
   return headerMonths;
 }
@@ -204,21 +366,21 @@ function buildPeriodIndices(headerMonths, keys){
 }
 
 // ================= KPI ACCESS =================
-function findRow(rows, keys){
-  for(const row of rows){
-    const label = row?.[0];
-    if(labelHas(label, keys)) return row;
+function findRow(rows, kpiKey){
+  const keys = KPI_MATCH[kpiKey] || [];
+  for(let r=0;r<rows.length;r++){
+    const label = rows[r]?.[0];
+    if(labelHas(label, keys)) return rows[r];
   }
   return null;
 }
 function getVal(rows, kpiKey, colIdx){
   if(colIdx == null) return null;
-  const keys = KPI_MATCH[kpiKey] || [];
-  const row = findRow(rows, keys);
+  const row = findRow(rows, kpiKey);
   return cleanNumber(row?.[colIdx]);
 }
 
-// ================= FINANCE AGG =================
+// ================= PERIOD AGGREGATORS =================
 function sumPeriod(rows, headerMonths, kpiKey, periodKeys){
   const idxs = buildPeriodIndices(headerMonths, periodKeys);
   if(!idxs.length) return null;
@@ -229,12 +391,55 @@ function sumPeriod(rows, headerMonths, kpiKey, periodKeys){
   }
   return any ? total : null;
 }
+function avgPctPeriod(rows, headerMonths, kpiKey, periodKeys){
+  const idxs = buildPeriodIndices(headerMonths, periodKeys);
+  if(!idxs.length) return null;
+  let sum = 0, n = 0;
+  for(const idx of idxs){
+    let v = getVal(rows, kpiKey, idx);
+    if(v == null) continue;
+    // se vier como 0.09 em vez de 9%
+    if(v <= 1.5) v = v*100;
+    sum += v; n++;
+  }
+  return n ? (sum/n) : null;
+}
+
+// Ativos: preferir T+P, senão "ATIVOS"
+function ativosPeriodAvg(rows, headerMonths, periodKeys){
+  const idxs = buildPeriodIndices(headerMonths, periodKeys);
+  if(!idxs.length) return null;
+  let sum = 0, n = 0;
+  for(const idx of idxs){
+    const t = getVal(rows, "ATIVOS_T", idx);
+    const p = getVal(rows, "ATIVOS_P", idx);
+    const a = getVal(rows, "ATIVOS", idx);
+    const v = (t!=null || p!=null) ? ((t||0) + (p||0)) : a;
+    if(v != null){ sum += v; n++; }
+  }
+  return n ? (sum/n) : null; // média mensal
+}
+
+// Financeiro: Faturamento = T+P (se existir) senão FAT
 function faturamentoPeriod(rows, headerMonths, periodKeys){
   const t = sumPeriod(rows, headerMonths, "FAT_T", periodKeys);
   const p = sumPeriod(rows, headerMonths, "FAT_P", periodKeys);
   if(t!=null || p!=null) return (t||0) + (p||0);
   return sumPeriod(rows, headerMonths, "FAT", periodKeys);
 }
+function recebidasPeriod(rows, headerMonths, periodKeys){
+  const t = sumPeriod(rows, headerMonths, "RECEBIDAS_T", periodKeys);
+  const p = sumPeriod(rows, headerMonths, "RECEBIDAS_P", periodKeys);
+  if(t!=null || p!=null) return (t||0) + (p||0);
+  return sumPeriod(rows, headerMonths, "RECEBIDAS", periodKeys);
+}
+function resultadoPeriod(rows, headerMonths, periodKeys){
+  const lucro = sumPeriod(rows, headerMonths, "LUCRO", periodKeys);
+  if(lucro != null) return lucro;
+  return sumPeriod(rows, headerMonths, "RESULTADO_LIQ", periodKeys);
+}
+
+// month values para “mês anterior” no Financeiro
 function faturamentoMonth(rows, headerMonths, keyYYYYMM){
   const col = findMonthColByKey(headerMonths, keyYYYYMM);
   if(col == null) return null;
@@ -243,18 +448,10 @@ function faturamentoMonth(rows, headerMonths, keyYYYYMM){
   if(t!=null || p!=null) return (t||0) + (p||0);
   return getVal(rows, "FAT", col);
 }
-function custoPeriod(rows, headerMonths, periodKeys){
-  return sumPeriod(rows, headerMonths, "CUSTO", periodKeys);
-}
 function custoMonth(rows, headerMonths, keyYYYYMM){
   const col = findMonthColByKey(headerMonths, keyYYYYMM);
   if(col == null) return null;
   return getVal(rows, "CUSTO", col);
-}
-function resultadoPeriod(rows, headerMonths, periodKeys){
-  const lucro = sumPeriod(rows, headerMonths, "LUCRO", periodKeys);
-  if(lucro != null) return lucro;
-  return sumPeriod(rows, headerMonths, "RESULTADO_LIQ", periodKeys);
 }
 function resultadoMonth(rows, headerMonths, keyYYYYMM){
   const col = findMonthColByKey(headerMonths, keyYYYYMM);
@@ -264,96 +461,40 @@ function resultadoMonth(rows, headerMonths, keyYYYYMM){
   return getVal(rows, "RESULTADO_LIQ", col);
 }
 
-// ================= UI =================
-function prettyUnit(unitKey){ return TABS[unitKey].replace("Números ",""); }
-
-function renderUnitMenu(){
-  const keys = Object.keys(TABS);
-  unitMenu.innerHTML = keys.map(k => {
-    const checked = selectedUnits.includes(k) ? "checked" : "";
-    return `
-      <label class="chkRow">
-        <input type="checkbox" data-unit="${k}" ${checked}/>
-        <span>${prettyUnit(k)}</span>
-      </label>
-    `;
-  }).join("") + `
-    <div class="multiFoot">
-      <button class="linkBtn" id="selAll" type="button">Todos</button>
-      <button class="linkBtn" id="selBase" type="button">Só Camaçari</button>
-    </div>
-  `;
-
-  unitMenu.querySelectorAll('input[type="checkbox"]').forEach(chk => {
-    chk.addEventListener("change", () => {
-      const u = chk.dataset.unit;
-      if(chk.checked){
-        if(!selectedUnits.includes(u)) selectedUnits.push(u);
-      } else {
-        selectedUnits = selectedUnits.filter(x => x !== u);
-      }
-      if(!selectedUnits.length){
-        selectedUnits = ["CAMACARI"];
-        renderUnitMenu();
-      }
-      refreshUnitSummary();
-    });
-  });
-
-  unitMenu.querySelector("#selAll").addEventListener("click", (e) => {
-    e.stopPropagation();
-    selectedUnits = Object.keys(TABS);
-    renderUnitMenu(); refreshUnitSummary();
-  });
-  unitMenu.querySelector("#selBase").addEventListener("click", (e) => {
-    e.stopPropagation();
-    selectedUnits = ["CAMACARI"];
-    renderUnitMenu(); refreshUnitSummary();
-  });
+// Conversão do período = matrículas / cadastros
+function conversaoPeriod(rows, headerMonths, periodKeys){
+  const mat = sumPeriod(rows, headerMonths, "MAT", periodKeys);
+  const cad = sumPeriod(rows, headerMonths, "CAD", periodKeys);
+  if(mat == null || cad == null || cad === 0) return null;
+  return (mat/cad)*100;
 }
 
-function refreshUnitSummary(){
-  unitSummary.textContent = selectedUnits.length
-    ? selectedUnits.map(prettyUnit).join(" • ")
-    : "Selecione ao menos 1 unidade";
-  unitBtnLabel.textContent = selectedUnits.length ? `${selectedUnits.length} unidade(s)` : "Selecionar unidades";
-}
+// ================= LOAD UNITS =================
+async function loadSelectedUnits(forceReload=false){
+  setStatus("Carregando unidades…");
+  hintBox.textContent = "Carregando dados das unidades selecionadas…";
 
-document.addEventListener("DOMContentLoaded", () => {
-  const now = new Date();
-  elStart.value = toISODate(new Date(now.getFullYear(),0,1));
-  elEnd.value = toISODate(new Date(now.getFullYear(),11,31));
-
-  renderUnitMenu();
-  refreshUnitSummary();
-
-  unitBtn.addEventListener("click", (e) => {
-    e.preventDefault(); e.stopPropagation();
-    unitMenu.classList.toggle("open");
-  });
-  document.addEventListener("click", (e) => {
-    if(!e.target.closest("#multiSelect")){
-      unitMenu.classList.remove("open");
+  try{
+    if(forceReload){
+      for(const u of selectedUnits) cache.delete(u);
     }
-  });
+    await Promise.all(selectedUnits.map(u => loadUnit(u)));
+    setStatus("Dados carregados.");
+    apply();
+  }catch(err){
+    console.error(err);
+    setStatus("Erro ao carregar dados.");
+    hintBox.textContent = "Erro: " + (err?.message || err);
+  }
+}
 
-  btnLoad.addEventListener("click", () => loadSelectedUnits(true));
-  btnApply.addEventListener("click", () => apply());
-  btnExpand.addEventListener("click", () => WRAP.classList.toggle("expanded"));
-
-  setStatus("Pronto. Carregando…");
-  hintBox.textContent = "Carregando dados…";
-  loadSelectedUnits(false);
-});
-
-// ================= LOAD =================
-async function loadUnit(unitKey, force=false){
-  if(!force && cache.has(unitKey)) return;
-
+async function loadUnit(unitKey){
+  if(cache.has(unitKey)) return;
   const tabName = TABS[unitKey];
   const res = await fetch(sheetUrl(tabName), { cache:"no-store" });
   const txt = await res.text();
   const data = parseGviz(txt);
+
   if(data.status !== "ok"){
     throw new Error(data.errors?.[0]?.detailed_message || `GViz status != ok (${tabName})`);
   }
@@ -369,46 +510,57 @@ async function loadUnit(unitKey, force=false){
   }
 
   const headerMonths = detectHeaderMonths(colLabels);
-
   cache.set(unitKey, { rows, colLabels, headerMonths });
 }
 
-async function loadSelectedUnits(force=false){
-  try{
-    setStatus("Carregando unidades…");
-    hintBox.textContent = "Carregando dados das unidades selecionadas…";
-    await Promise.all(selectedUnits.map(u => loadUnit(u, force)));
-    setStatus("Dados carregados.");
-    apply();
-  }catch(err){
-    console.error(err);
-    setStatus("Erro.");
-    hintBox.textContent = "Erro ao carregar: " + (err?.message || err);
-  }
-}
+// ================= RENDER (MANTÉM PADRÃO ANTIGO NAS LINHAS ABAIXO) =================
 
-// ================= RENDER HELPERS =================
-function unitLineHTML(unitKey, title, mainValue, monthPrevValue, monthPrevPct, yoyValue, yoyPct){
-  const cls = `unitLine unit-${unitKey}`;
-  const pct1cls = deltaCls(monthPrevPct);
-  const pct2cls = deltaCls(yoyPct);
+// Finance (modelo do seu print)
+function unitLineFinanceHTML(unitKey, title, mediaMensal, mesAnteriorValor, pctVsMesAnt, mediaAnoAnt, pctVsAnoAnt){
+  const pct1cls = deltaCls(pctVsMesAnt);
+  const pct2cls = deltaCls(pctVsAnoAnt);
 
   return `
-    <div class="${cls}">
+    <div class="unitLine unit-${unitKey}">
       <div class="unitTop">
         <div class="unitName">${title}</div>
-        <div class="unitValue">${mainValue}</div>
+        <div class="unitValue">${mediaMensal}</div>
       </div>
 
       <div class="unitBottom">
         <div class="rowLine">
-          <span>Mês ant.: <b>${monthPrevValue}</b></span>
-          <span class="pct ${pct1cls}">${fmtPct(monthPrevPct)}</span>
+          <span>Per. ant.: <b>${mesAnteriorValor}</b></span>
+          <span class="pct ${pct1cls}">${fmtPct(pctVsMesAnt)}</span>
         </div>
-
         <div class="rowLine">
-          <span>Ano ant.: <b>${yoyValue}</b></span>
-          <span class="pct ${pct2cls}">${fmtPct(yoyPct)}</span>
+          <span>Ano ant.: <b>${mediaAnoAnt}</b></span>
+          <span class="pct ${pct2cls}">${fmtPct(pctVsAnoAnt)}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Linhas abaixo (mantém “como antes”: valor + % vs mês anterior + % vs ano anterior)
+function unitLineSimpleHTML(unitKey, title, valueStr, pctMoM, pctYoY, lowerIsBetter=false){
+  const pct1cls = deltaCls(pctMoM, lowerIsBetter);
+  const pct2cls = deltaCls(pctYoY, lowerIsBetter);
+
+  return `
+    <div class="unitLine unit-${unitKey}">
+      <div class="unitTop">
+        <div class="unitName">${title}</div>
+        <div class="unitValue">${valueStr}</div>
+      </div>
+
+      <div class="unitBottom">
+        <div class="rowLine">
+          <span>vs mês anterior</span>
+          <span class="pct ${pct1cls}">${fmtPct(pctMoM)}</span>
+        </div>
+        <div class="rowLine">
+          <span>vs ano anterior</span>
+          <span class="pct ${pct2cls}">${fmtPct(pctYoY)}</span>
         </div>
       </div>
     </div>
@@ -416,26 +568,48 @@ function unitLineHTML(unitKey, title, mainValue, monthPrevValue, monthPrevPct, y
 }
 
 function setTotalPill(el, value){
+  if(!el) return;
   el.textContent = `Total: ${value}`;
 }
 
-// ================= APPLY (PRINT LOGIC) =================
+// ================= APPLY =================
 function apply(){
-  if(!selectedUnits.length) return;
+  if(!selectedUnits.length){
+    hintBox.textContent = "Selecione ao menos 1 unidade.";
+    return;
+  }
+  for(const u of selectedUnits){
+    if(!cache.has(u)){
+      hintBox.textContent = "Algumas unidades ainda não carregaram. Clique em Carregar.";
+      return;
+    }
+  }
 
   const startISO = elStart.value;
   const endISO = elEnd.value;
 
   const baseKeys = monthRangeKeys(startISO, endISO);
-  const n = monthsN(baseKeys);
-  const pmKey = prevMonthKey(startISO);
-  const yoyKeys = shiftPeriodKeys(baseKeys, -12);
+  const nMonths = monthsN(baseKeys);
 
+  // período anterior equivalente (mesma quantidade de meses, terminando no mês anterior ao início)
+  const startDate = new Date(startISO+"T00:00:00");
+  const baseStartMonth = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  const prevEndMonth = addMonths(baseStartMonth, -1);
+  const prevStartMonth = addMonths(prevEndMonth, -(nMonths-1));
+  const prevKeys = monthRangeKeys(toISODate(prevStartMonth), toISODate(prevEndMonth));
+
+  // mesmo período ano anterior (-12 meses)
+  const yoyKeys = shiftKeys(baseKeys, -12);
+
+  // mês anterior (somente para Finance no seu modelo)
+  const pmKey = prevMonthKey(startISO);
+
+  // metas topo
   metaUnit.textContent = selectedUnits.map(prettyUnit).join(", ");
   metaPeriod.textContent = `${brDate(startISO)} → ${brDate(endISO)}`;
   metaBaseMonth.textContent = baseKeys.length ? baseKeys[baseKeys.length-1] : "—";
 
-  // Validação meses detectados
+  // aviso cabeçalhos
   const baseUnit = selectedUnits[0];
   const baseData = cache.get(baseUnit);
   if(!baseData?.headerMonths?.length){
@@ -444,34 +618,26 @@ function apply(){
     hintBox.textContent = "";
   }
 
-  // ---------- FATURAMENTO (Topo = total do período / linhas = média mensal + comps)
-  let fatTotalAll = 0, fatAny = false;
-  let fatHTML = "";
+  // ================== FINANCEIRO (PRINT) ==================
+  let htmlFat = "", htmlCusto = "", htmlRes = "";
 
-  // ---------- CUSTO
-  let custoTotalAll = 0, custoAny = false;
-  let custoHTML = "";
-
-  // ---------- RESULTADO
-  let resTotalAll = 0, resAny = false;
-  let resHTML = "";
+  let sumFatAll = 0, sumCustoAll = 0, sumResAll = 0;
+  let anyFat=false, anyCusto=false, anyRes=false;
 
   for(const unitKey of selectedUnits){
     const { rows, headerMonths } = cache.get(unitKey);
 
-    // FAT: total período
+    // Faturamento
     const fatTotal = faturamentoPeriod(rows, headerMonths, baseKeys);
-    if(fatTotal != null){ fatTotalAll += fatTotal; fatAny = true; }
-    const fatMedia = (fatTotal == null) ? null : (fatTotal / n);
-
+    const fatMedia = (fatTotal == null) ? null : fatTotal / nMonths;
     const fatMesAnt = faturamentoMonth(rows, headerMonths, pmKey);
     const fatVsMesAnt = pctDelta(fatMedia, fatMesAnt);
 
     const fatYoyTotal = faturamentoPeriod(rows, headerMonths, yoyKeys);
-    const fatYoyMedia = (fatYoyTotal == null) ? null : (fatYoyTotal / n);
+    const fatYoyMedia = (fatYoyTotal == null) ? null : fatYoyTotal / nMonths;
     const fatVsYoy = pctDelta(fatMedia, fatYoyMedia);
 
-    fatHTML += unitLineHTML(
+    htmlFat += unitLineFinanceHTML(
       unitKey,
       prettyUnit(unitKey),
       fatMedia == null ? "—" : fmtMoney(fatMedia),
@@ -481,74 +647,241 @@ function apply(){
       fatVsYoy
     );
 
-    // CUSTO
-    const cTotal = custoPeriod(rows, headerMonths, baseKeys);
-    if(cTotal != null){ custoTotalAll += cTotal; custoAny = true; }
-    const cMedia = (cTotal == null) ? null : (cTotal / n);
+    if(fatTotal != null){ sumFatAll += fatTotal; anyFat = true; }
 
-    const cMesAnt = custoMonth(rows, headerMonths, pmKey);
-    const cVsMesAnt = pctDelta(cMedia, cMesAnt);
+    // Custos
+    const custoTotal = sumPeriod(rows, headerMonths, "CUSTO", baseKeys);
+    const custoMedia = (custoTotal == null) ? null : custoTotal / nMonths;
+    const custoMesAnt = custoMonth(rows, headerMonths, pmKey);
+    const custoVsMesAnt = pctDelta(custoMedia, custoMesAnt);
 
-    const cYoyTotal = custoPeriod(rows, headerMonths, yoyKeys);
-    const cYoyMedia = (cYoyTotal == null) ? null : (cYoyTotal / n);
-    const cVsYoy = pctDelta(cMedia, cYoyMedia);
+    const custoYoyTotal = sumPeriod(rows, headerMonths, "CUSTO", yoyKeys);
+    const custoYoyMedia = (custoYoyTotal == null) ? null : custoYoyTotal / nMonths;
+    const custoVsYoy = pctDelta(custoMedia, custoYoyMedia);
 
-    custoHTML += unitLineHTML(
+    htmlCusto += unitLineFinanceHTML(
       unitKey,
       prettyUnit(unitKey),
-      cMedia == null ? "—" : fmtMoney(cMedia),
-      cMesAnt == null ? "—" : fmtMoney(cMesAnt),
-      cVsMesAnt,
-      cYoyMedia == null ? "—" : fmtMoney(cYoyMedia),
-      cVsYoy
+      custoMedia == null ? "—" : fmtMoney(custoMedia),
+      custoMesAnt == null ? "—" : fmtMoney(custoMesAnt),
+      custoVsMesAnt,
+      custoYoyMedia == null ? "—" : fmtMoney(custoYoyMedia),
+      custoVsYoy
     );
 
-    // RESULTADO
-    const rTotal = resultadoPeriod(rows, headerMonths, baseKeys);
-    if(rTotal != null){ resTotalAll += rTotal; resAny = true; }
-    const rMedia = (rTotal == null) ? null : (rTotal / n);
+    if(custoTotal != null){ sumCustoAll += custoTotal; anyCusto = true; }
 
-    const rMesAnt = resultadoMonth(rows, headerMonths, pmKey);
-    const rVsMesAnt = pctDelta(rMedia, rMesAnt);
+    // Resultado
+    const resTotal = resultadoPeriod(rows, headerMonths, baseKeys);
+    const resMedia = (resTotal == null) ? null : resTotal / nMonths;
+    const resMesAnt = resultadoMonth(rows, headerMonths, pmKey);
+    const resVsMesAnt = pctDelta(resMedia, resMesAnt);
 
-    const rYoyTotal = resultadoPeriod(rows, headerMonths, yoyKeys);
-    const rYoyMedia = (rYoyTotal == null) ? null : (rYoyTotal / n);
-    const rVsYoy = pctDelta(rMedia, rYoyMedia);
+    const resYoyTotal = resultadoPeriod(rows, headerMonths, yoyKeys);
+    const resYoyMedia = (resYoyTotal == null) ? null : resYoyTotal / nMonths;
+    const resVsYoy = pctDelta(resMedia, resYoyMedia);
 
-    resHTML += unitLineHTML(
+    htmlRes += unitLineFinanceHTML(
       unitKey,
       prettyUnit(unitKey),
-      rMedia == null ? "—" : fmtMoney(rMedia),
-      rMesAnt == null ? "—" : fmtMoney(rMesAnt),
-      rVsMesAnt,
-      rYoyMedia == null ? "—" : fmtMoney(rYoyMedia),
-      rVsYoy
+      resMedia == null ? "—" : fmtMoney(resMedia),
+      resMesAnt == null ? "—" : fmtMoney(resMesAnt),
+      resVsMesAnt,
+      resYoyMedia == null ? "—" : fmtMoney(resYoyMedia),
+      resVsYoy
     );
+
+    if(resTotal != null){ sumResAll += resTotal; anyRes = true; }
   }
 
-  CARD.faturamento.innerHTML = fatHTML || "<div class='muted'>—</div>";
-  CARD.custo.innerHTML = custoHTML || "<div class='muted'>—</div>";
-  CARD.resultado.innerHTML = resHTML || "<div class='muted'>—</div>";
+  CARD.faturamento.innerHTML = htmlFat || "<div class='muted'>—</div>";
+  CARD.custo.innerHTML = htmlCusto || "<div class='muted'>—</div>";
+  CARD.resultado.innerHTML = htmlRes || "<div class='muted'>—</div>";
 
-  setTotalPill(TOTAL.faturamento, fatAny ? fmtMoney(fatTotalAll) : "—");
-  setTotalPill(TOTAL.custo, custoAny ? fmtMoney(custoTotalAll) : "—");
-  setTotalPill(TOTAL.resultado, resAny ? fmtMoney(resTotalAll) : "—");
+  setTotalPill(TOTAL.faturamento, anyFat ? fmtMoney(sumFatAll) : "—");
+  setTotalPill(TOTAL.custo, anyCusto ? fmtMoney(sumCustoAll) : "—");
+  setTotalPill(TOTAL.resultado, anyRes ? fmtMoney(sumResAll) : "—");
 
-  // tabela da unidade base (primeira selecionada)
+  // ================== LINHAS ABAIXO (SEM MUDAR PADRÃO) ==================
+  renderSimpleCards(baseKeys, prevKeys, yoyKeys);
+
+  // ================== TABELA ==================
   renderTable(baseUnit, baseKeys);
+
+  setStatus("Aplicado.");
+}
+
+// Mantém a estrutura antiga: valor + % vs mês anterior + % vs ano anterior
+function renderSimpleCards(baseKeys, prevKeys, yoyKeys){
+  let htmlAtivos="", htmlMat="", htmlCad="", htmlConv="", htmlRec="";
+  let htmlInad="", htmlEvasao="", htmlMargem="";
+
+  let totAtivos=0, anyAt=false;
+  let totMat=0, anyMat=false;
+  let totCad=0, anyCad=false;
+  let totRec=0, anyRec=false;
+
+  // para percentuais totais (conversão/margem) eu faço média simples por unidade (mantém coerência de “como estava”)
+  let sumConv=0, nConv=0;
+  let sumInad=0, nInad=0;
+  let sumEvas=0, nEvas=0;
+  let sumMarg=0, nMarg=0;
+
+  for(const unitKey of selectedUnits){
+    const { rows, headerMonths } = cache.get(unitKey);
+
+    // Ativos (média mensal no período)
+    const aNow = ativosPeriodAvg(rows, headerMonths, baseKeys);
+    const aPrev = ativosPeriodAvg(rows, headerMonths, prevKeys);
+    const aYoy = ativosPeriodAvg(rows, headerMonths, yoyKeys);
+
+    htmlAtivos += unitLineSimpleHTML(
+      unitKey,
+      prettyUnit(unitKey),
+      aNow == null ? "—" : fmtInt(aNow),
+      pctDelta(aNow, aPrev),
+      pctDelta(aNow, aYoy)
+    );
+
+    if(aNow != null){ totAtivos += aNow; anyAt=true; }
+
+    // Matrículas (total no período)
+    const mNow = sumPeriod(rows, headerMonths, "MAT", baseKeys);
+    const mPrev = sumPeriod(rows, headerMonths, "MAT", prevKeys);
+    const mYoy = sumPeriod(rows, headerMonths, "MAT", yoyKeys);
+
+    htmlMat += unitLineSimpleHTML(
+      unitKey,
+      prettyUnit(unitKey),
+      mNow == null ? "—" : fmtInt(mNow),
+      pctDelta(mNow, mPrev),
+      pctDelta(mNow, mYoy)
+    );
+    if(mNow != null){ totMat += mNow; anyMat=true; }
+
+    // Cadastros (total)
+    const cNow = sumPeriod(rows, headerMonths, "CAD", baseKeys);
+    const cPrev = sumPeriod(rows, headerMonths, "CAD", prevKeys);
+    const cYoy = sumPeriod(rows, headerMonths, "CAD", yoyKeys);
+
+    htmlCad += unitLineSimpleHTML(
+      unitKey,
+      prettyUnit(unitKey),
+      cNow == null ? "—" : fmtInt(cNow),
+      pctDelta(cNow, cPrev),
+      pctDelta(cNow, cYoy)
+    );
+    if(cNow != null){ totCad += cNow; anyCad=true; }
+
+    // Conversão (mat/cad)
+    const convNow = conversaoPeriod(rows, headerMonths, baseKeys);
+    const convPrev = conversaoPeriod(rows, headerMonths, prevKeys);
+    const convYoy = conversaoPeriod(rows, headerMonths, yoyKeys);
+
+    htmlConv += unitLineSimpleHTML(
+      unitKey,
+      prettyUnit(unitKey),
+      convNow == null ? "—" : fmtPct(convNow),
+      pctDelta(convNow, convPrev),
+      pctDelta(convNow, convYoy)
+    );
+    if(convNow != null){ sumConv += convNow; nConv++; }
+
+    // Recebidas (total)
+    const rNow = recebidasPeriod(rows, headerMonths, baseKeys);
+    const rPrev = recebidasPeriod(rows, headerMonths, prevKeys);
+    const rYoy = recebidasPeriod(rows, headerMonths, yoyKeys);
+
+    htmlRec += unitLineSimpleHTML(
+      unitKey,
+      prettyUnit(unitKey),
+      rNow == null ? "—" : fmtMoney(rNow),
+      pctDelta(rNow, rPrev),
+      pctDelta(rNow, rYoy)
+    );
+    if(rNow != null){ totRec += rNow; anyRec=true; }
+
+    // Inadimplência (média % no período) => lower is better
+    const inadNow = avgPctPeriod(rows, headerMonths, "INAD", baseKeys);
+    const inadPrev = avgPctPeriod(rows, headerMonths, "INAD", prevKeys);
+    const inadYoy = avgPctPeriod(rows, headerMonths, "INAD", yoyKeys);
+
+    htmlInad += unitLineSimpleHTML(
+      unitKey,
+      prettyUnit(unitKey),
+      inadNow == null ? "—" : fmtPct(inadNow),
+      pctDelta(inadNow, inadPrev),
+      pctDelta(inadNow, inadYoy),
+      true
+    );
+    if(inadNow != null){ sumInad += inadNow; nInad++; }
+
+    // Evasão (média % no período) => lower is better
+    const evNow = avgPctPeriod(rows, headerMonths, "EVASAO", baseKeys);
+    const evPrev = avgPctPeriod(rows, headerMonths, "EVASAO", prevKeys);
+    const evYoy = avgPctPeriod(rows, headerMonths, "EVASAO", yoyKeys);
+
+    htmlEvasao += unitLineSimpleHTML(
+      unitKey,
+      prettyUnit(unitKey),
+      evNow == null ? "—" : fmtPct(evNow),
+      pctDelta(evNow, evPrev),
+      pctDelta(evNow, evYoy),
+      true
+    );
+    if(evNow != null){ sumEvas += evNow; nEvas++; }
+
+    // Margem (média % no período)
+    const mgNow = avgPctPeriod(rows, headerMonths, "MARGEM", baseKeys);
+    const mgPrev = avgPctPeriod(rows, headerMonths, "MARGEM", prevKeys);
+    const mgYoy = avgPctPeriod(rows, headerMonths, "MARGEM", yoyKeys);
+
+    htmlMargem += unitLineSimpleHTML(
+      unitKey,
+      prettyUnit(unitKey),
+      mgNow == null ? "—" : fmtPct(mgNow),
+      pctDelta(mgNow, mgPrev),
+      pctDelta(mgNow, mgYoy)
+    );
+    if(mgNow != null){ sumMarg += mgNow; nMarg++; }
+  }
+
+  // Render nas caixas
+  CARD.ativos.innerHTML = htmlAtivos || "<div class='muted'>—</div>";
+  CARD.matriculas.innerHTML = htmlMat || "<div class='muted'>—</div>";
+  CARD.cadastros.innerHTML = htmlCad || "<div class='muted'>—</div>";
+  CARD.conversao.innerHTML = htmlConv || "<div class='muted'>—</div>";
+  CARD.recebidas.innerHTML = htmlRec || "<div class='muted'>—</div>";
+
+  CARD.inad.innerHTML = htmlInad || "<div class='muted'>—</div>";
+  CARD.evasao.innerHTML = htmlEvasao || "<div class='muted'>—</div>";
+  CARD.margem.innerHTML = htmlMargem || "<div class='muted'>—</div>";
+
+  // Totais (no topo do card)
+  setTotalPill(TOTAL.ativos, anyAt ? fmtInt(totAtivos) : "—");
+  setTotalPill(TOTAL.matriculas, anyMat ? fmtInt(totMat) : "—");
+  setTotalPill(TOTAL.cadastros, anyCad ? fmtInt(totCad) : "—");
+  setTotalPill(TOTAL.recebidas, anyRec ? fmtMoney(totRec) : "—");
+
+  // Percentuais totais: média das unidades (mantém a ideia antiga)
+  setTotalPill(TOTAL.conversao, nConv ? fmtPct(sumConv/nConv) : "—");
+  setTotalPill(TOTAL.inad, nInad ? fmtPct(sumInad/nInad) : "—");
+  setTotalPill(TOTAL.evasao, nEvas ? fmtPct(sumEvas/nEvas) : "—");
+  setTotalPill(TOTAL.margem, nMarg ? fmtPct(sumMarg/nMarg) : "—");
 }
 
 // ================= TABLE =================
 function renderTable(unitKey, baseKeys){
+  if(!TABLE) return;
   const { rows, colLabels, headerMonths } = cache.get(unitKey);
-  const mode = elMode.value;
+  const mode = elMode?.value || "interval";
 
   const indices = mode === "full"
     ? headerMonths.map(h => h.idx)
     : buildPeriodIndices(headerMonths, baseKeys);
 
   const headCols = indices.map(i => colLabels[i] || "");
-  tblInfo.textContent = `Tabela: ${prettyUnit(unitKey)} • Colunas: ${mode === "full" ? "todas" : "período"}`;
+  if(tblInfo) tblInfo.textContent = `Tabela: ${prettyUnit(unitKey)} • Colunas: ${mode === "full" ? "todas" : "período"}`;
 
   const thead = `
     <thead>
