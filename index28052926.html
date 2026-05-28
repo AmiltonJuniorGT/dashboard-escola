@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard KPI GT</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div>
+        <h1>Dashboard KPI GT</h1>
+        <p>Indicadores financeiros por unidade e período</p>
+      </div>
+      <span class="badge">Google Sheets</span>
+    </header>
+
+    <section class="filters">
+      <label>
+        Unidade
+        <select id="unitSelect"></select>
+      </label>
+
+      <label>
+        Indicador
+        <select id="indicatorSelect"></select>
+      </label>
+
+      <label>
+        Início
+        <select id="startMonth"></select>
+      </label>
+
+      <label>
+        Fim
+        <select id="endMonth"></select>
+      </label>
+    </section>
+
+    <main>
+      <section id="cards" class="cards"></section>
+
+      <section class="charts-grid">
+        <div class="panel">
+          <h2>Evolução mensal</h2>
+          <canvas id="lineChart" height="260"></canvas>
+        </div>
+
+        <div class="panel">
+          <h2>Comparativos</h2>
+          <canvas id="barChart" height="260"></canvas>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Resumo do período</h2>
+        <div id="tableWrap"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
